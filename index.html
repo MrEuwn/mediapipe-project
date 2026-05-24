@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Arcane Light Spellcaster FPS - Enhanced Edition</title>
+    <title>Arcane Light - Raycast & Tracking Edition</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
@@ -35,6 +35,13 @@
         #health-fill { background: linear-gradient(90deg, #ff3333, #ff6666); width: 100%; }
         #mana-fill { background: linear-gradient(90deg, #00aaff, #66ccff); width: 100%; }
         
+        /* Gaya baru untuk UI Tracking Status */
+        #tracking-status {
+            margin-top: 10px; padding: 6px; text-align: center; font-size: 12px; font-weight: bold;
+            border-radius: 6px; border: 1px solid #ff4444; background: rgba(255, 100, 100, 0.15);
+            color: #cc0000; transition: all 0.3s ease; letter-spacing: 0.5px;
+        }
+
         .score-text { font-size: 32px; font-weight: bold; color: #4400aa; text-shadow: 0 2px 5px rgba(100, 0, 255, 0.3); background: rgba(255,255,255,0.7); padding: 8px 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(102,0,255,0.2); }
         
         #overlay-screen {
@@ -73,6 +80,8 @@
                 <div class="bar-bg"><div id="health-fill"></div></div>
                 <div class="bar-label"><span>MANA</span> <span><span id="mana-text">100</span>/100</span></div>
                 <div class="bar-bg"><div id="mana-fill"></div></div>
+                
+                <div id="tracking-status">MENCARI TANGAN...</div>
             </div>
             <div class="score-text">SCORE: <span id="score-text">0</span></div>
         </div>
@@ -103,7 +112,8 @@
             scoreText: document.getElementById('score-text'), hpText: document.getElementById('hp-text'),
             manaText: document.getElementById('mana-text'), overlay: document.getElementById('overlay-screen'),
             startBtn: document.getElementById('start-btn'), loadingText: document.getElementById('loading-text'),
-            damageOverlay: document.getElementById('damage-overlay')
+            damageOverlay: document.getElementById('damage-overlay'),
+            trackingStatus: document.getElementById('tracking-status') // Referensi DOM Baru
         };
 
         // SETUP THREE.JS TERANG
@@ -115,69 +125,62 @@
         camera.position.set(0, 1.6, 0);
         scene.add(camera);
 
-        const renderer = new THREE.WebGLRenderer({ canvas: DOM.canvas, antialias: true, alpha: false });
+        const renderer = new THREE.WebGLRenderer({ canvas: DOM.canvas, antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-        // PENCAHAYAAN (Mendukung Material Fisik)
+        // LIGHTS
         scene.add(new THREE.AmbientLight(0xffffff, 1.2));
         const sunLight = new THREE.DirectionalLight(0xfffaee, 2.5);
         sunLight.position.set(10, 15, 10); sunLight.castShadow = true;
         sunLight.shadow.mapSize.width = 2048; sunLight.shadow.mapSize.height = 2048;
         scene.add(sunLight);
 
-        // Lantai Arena
+        // Ground
         const gridHelper = new THREE.GridHelper(100, 100, 0x88bbff, 0xffffff);
         gridHelper.position.y = 0.01; scene.add(gridHelper);
         const ground = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: 0xcce0ff, roughness: 0.9 }));
         ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
 
         // ==========================================
-        // 1. ASET: ARCANE GAUNTLETS (TANGAN PEMAIN)
+        // ARCANE GAUNTLETS (TANGAN PEMAIN)
         // ==========================================
         const fpsArmsGroup = new THREE.Group();
         camera.add(fpsArmsGroup);
 
-        // Arrays untuk menyimpan bagian tubuh yang perlu dianimasikan (cincin melayang, inti energi)
         const handMagicRings = [];
         const handCores = [];
+        const spellBeams = []; // Array baru penampung laser raycast
 
         function createAdvancedArm(isRight) {
             const armGroup = new THREE.Group();
+            const armorMat = new THREE.MeshStandardMaterial({ color: 0xaa8822, metalness: 0.8, roughness: 0.3 });
+            const darkClothMat = new THREE.MeshStandardMaterial({ color: 0x221144, roughness: 0.9 });
+            const coreMat = new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x00aaff, emissiveIntensity: 2 });
             
-            // Material Premium
-            const armorMat = new THREE.MeshStandardMaterial({ color: 0xaa8822, metalness: 0.8, roughness: 0.3 }); // Emas Kuno
-            const darkClothMat = new THREE.MeshStandardMaterial({ color: 0x221144, roughness: 0.9 }); // Kain Ungu Gelap
-            const coreMat = new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x00aaff, emissiveIntensity: 2 }); // Inti Energi
-            
-            // 1. Lengan / Jubah Dalam
             const sleeveGeo = new THREE.CylinderGeometry(0.06, 0.09, 0.5, 16);
             const sleeve = new THREE.Mesh(sleeveGeo, darkClothMat);
             sleeve.position.set(0, 0, -0.2); sleeve.rotation.x = Math.PI / 2;
             armGroup.add(sleeve);
 
-            // 2. Bracer (Pelindung Lengan Logam Segi Delapan)
             const bracerGeo = new THREE.CylinderGeometry(0.08, 0.11, 0.35, 8);
             const bracer = new THREE.Mesh(bracerGeo, armorMat);
             bracer.position.set(0, 0, -0.25); bracer.rotation.x = Math.PI / 2;
             armGroup.add(bracer);
 
-            // 3. Telapak Tangan (Gauntlet Palm)
             const palmGeo = new THREE.BoxGeometry(0.12, 0.05, 0.14);
             const palm = new THREE.Mesh(palmGeo, armorMat);
             palm.position.set(0, 0, -0.5);
             armGroup.add(palm);
 
-            // 4. Inti Kristal Energi di Telapak Tangan
             const coreGeo = new THREE.OctahedronGeometry(0.04, 0);
             const core = new THREE.Mesh(coreGeo, coreMat);
-            core.position.set(0, 0.03, -0.5); // Menonjol ke atas (ke arah kamera/musuh)
+            core.position.set(0, 0.03, -0.5);
             armGroup.add(core);
             handCores.push(core);
 
-            // 5. Cincin Sihir Melayang (Hologram)
             const ringGeo = new THREE.TorusGeometry(0.15, 0.005, 8, 32);
             const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.7, side: THREE.DoubleSide });
             const magicRing = new THREE.Mesh(ringGeo, ringMat);
@@ -194,59 +197,42 @@
         fpsArmsGroup.add(armR, armL);
 
         // ==========================================
-        // 2. ASET: DARK WIZARD / ARCANE GOLEM (MUSUH)
+        // DARK WIZARD / ARCANE GOLEM (MUSUH)
         // ==========================================
         const enemyGroup = new THREE.Group();
         enemyGroup.position.set(0, 1.8, -10);
         
-        // Material Kristal Tembus Pandang untuk Inti Musuh
         const crystalMat = new THREE.MeshPhysicalMaterial({
             color: 0x9900ff, emissive: 0x330066, emissiveIntensity: 0.5,
             metalness: 0.1, roughness: 0.1, transmission: 0.9, thickness: 0.5,
         });
-        
-        // Material Armor Besi Hitam
         const darkMetalMat = new THREE.MeshStandardMaterial({ color: 0x222233, metalness: 0.9, roughness: 0.4 });
 
-        // 1. Core Kristal Utama (Octahedron Besar)
         const coreCrystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.8, 0), crystalMat);
-        coreCrystal.castShadow = true;
-        enemyGroup.add(coreCrystal);
+        coreCrystal.castShadow = true; enemyGroup.add(coreCrystal);
 
-        // 2. Cincin Zirah Melayang (Berputar)
         const armorRings = new THREE.Group();
-        
-        // Cincin Vertikal
         const ring1 = new THREE.Mesh(new THREE.TorusGeometry(1.2, 0.1, 8, 16), darkMetalMat);
-        ring1.rotation.x = Math.PI / 2; ring1.castShadow = true;
-        armorRings.add(ring1);
+        ring1.rotation.x = Math.PI / 2; ring1.castShadow = true; armorRings.add(ring1);
 
-        // Cincin Miring dengan Duri (Cones)
         const ring2 = new THREE.Mesh(new THREE.TorusGeometry(1.4, 0.05, 8, 16), darkMetalMat);
         ring2.rotation.y = Math.PI / 4; ring2.castShadow = true;
-        
-        // Tambahkan duri ke cincin
         for(let i = 0; i < 4; i++) {
             const spike = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.5, 4), darkMetalMat);
             spike.position.set(Math.cos(i * Math.PI/2) * 1.4, Math.sin(i * Math.PI/2) * 1.4, 0);
-            spike.rotation.z = -(i * Math.PI/2);
-            ring2.add(spike);
+            spike.rotation.z = -(i * Math.PI/2); ring2.add(spike);
         }
         armorRings.add(ring2);
-        
         enemyGroup.add(armorRings);
         scene.add(enemyGroup);
 
-        // ==========================================
-        // OBJEK LAINNYA (CROSSHAIR & SHIELD)
-        // ==========================================
+        // CROSSHAIR & SHIELD
         const crosshair = new THREE.Mesh(
             new THREE.RingGeometry(0.04, 0.06, 32),
             new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.6 })
         );
         crosshair.position.z = -1.5; camera.add(crosshair); 
 
-        // Shield yang lebih estetik (Icosahedron kawat besar)
         const shield = new THREE.Mesh(
             new THREE.IcosahedronGeometry(2, 1),
             new THREE.MeshBasicMaterial({ color: 0x00ccff, wireframe: true, transparent: true, opacity: 0.2 })
@@ -256,7 +242,7 @@
         const projectiles = []; const particles = [];
         const raycaster = new THREE.Raycaster();
 
-        // LOGIKA EFEK & TEMBAKAN
+        // LOGIKA EFEK EXPLOSION
         function createExplosion(pos, color) {
             const geo = new THREE.BufferGeometry(); const posArr = new Float32Array(150); const velArr = [];
             for(let i=0; i<50; i++) {
@@ -268,32 +254,63 @@
             scene.add(pts); particles.push({ mesh: pts, vel: velArr, life: 1.0 });
         }
 
+        // ===================================================
+        // LOGIKA SHOOT FIREBALL & VISUAL RAYCASTING SPELL PATH
+        // ===================================================
         function shootFireball() {
             if (state.mana < 10 || performance.now() - state.lastFireTime < 400) return;
             state.mana -= 10; updateUI(); state.lastFireTime = performance.now();
 
+            // 1. Dapatkan Posisi Global Pangkal Tembakan (Kristal Tangan Kanan)
+            const armGlobalPos = new THREE.Vector3(); 
+            armR.getWorldPosition(armGlobalPos);
+            armGlobalPos.y += 0.03; // Sesuaikan dengan letak kristal di telapak
+
+            // 2. Tentukan Arah Tembakan Berdasarkan Titik Tengah Kamera/Crosshair
+            const crossGlobalPos = new THREE.Vector3(); 
+            crosshair.getWorldPosition(crossGlobalPos);
+            const dir = crossGlobalPos.clone().sub(armGlobalPos).normalize();
+
+            // 3. Tambahkan Ornamen Bola Fisik Utama (Proyektil)
             const ball = new THREE.Mesh(new THREE.DodecahedronGeometry(0.12, 0), new THREE.MeshBasicMaterial({ color: 0x00ffff }));
-            const armGlobalPos = new THREE.Vector3(); armR.getWorldPosition(armGlobalPos);
-            ball.position.copy(armGlobalPos); ball.position.y += 0.2;
-
-            const crossGlobalPos = new THREE.Vector3(); crosshair.getWorldPosition(crossGlobalPos);
-            const dir = crossGlobalPos.sub(armGlobalPos).normalize();
-            
-            projectiles.push({ mesh: ball, dir: dir, speed: 0.7, isPlayer: true }); scene.add(ball);
+            ball.position.copy(armGlobalPos);
+            projectiles.push({ mesh: ball, dir: dir, speed: 0.7, isPlayer: true }); 
+            scene.add(ball);
             state.cameraShake = 0.05;
-
-            // Efek denyut (pulse) pada kristal tangan saat menembak
             handCores[0].scale.set(1.5, 1.5, 1.5);
 
+            // 4. LOGIKA & GEOMETRI JALUR RAYCASTING (LASER BEAM)
             raycaster.setFromCamera(crosshair.position, camera);
-            // Gunakan true agar mendeteksi seluruh komponen musuh (Armor & Inti)
-            if (raycaster.intersectObject(enemyGroup, true).length > 0) {
+            const intersects = raycaster.intersectObject(enemyGroup, true);
+            
+            // Titik Ujung Tembakan Default (Jika meleset, ditarik sepanjang 20 unit)
+            let endPoint = armGlobalPos.clone().addScaledVector(dir, 20); 
+            
+            if (intersects.length > 0) {
+                endPoint.copy(intersects[0].point); // Jika mengenai musuh, kunci di titik tabrakan
+                
                 setTimeout(() => {
                     createExplosion(enemyGroup.position, 0x00ffff);
                     state.score += 50; state.cameraShake = 0.2; updateUI();
                     enemyGroup.position.z -= 1.5; 
                 }, 150);
             }
+
+            // Membangun Silinder 3D sebagai Laser Pembimbing Jalur Sihir
+            const beamLength = armGlobalPos.distanceTo(endPoint);
+            const beamGeo = new THREE.CylinderGeometry(0.015, 0.015, 1, 6); // Radius tipis seperti laser berkelap-kelip
+            const beamMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.9 });
+            const beamMesh = new THREE.Mesh(beamGeo, beamMat);
+
+            // Atur skala panjang silinder agar pas sesuai jarak tabrakan raycast
+            beamMesh.scale.set(1, beamLength, 1);
+            // Letakkan di titik tengah antara tangan dan target
+            beamMesh.position.copy(armGlobalPos).add(endPoint).multiplyScalar(0.5);
+            // Putar silinder agar sejajar mengikuti arah vektor tembakan
+            beamMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+
+            scene.add(beamMesh);
+            spellBeams.push({ mesh: beamMesh, life: 1.0 }); // Dimasukkan ke array untuk di-fade out di loop
         }
 
         function updateUI() {
@@ -312,7 +329,7 @@
         }
 
         // ==========================================
-        // SISTEM MEDIAPIPE & TRACKING
+        // SISTEM MEDIAPIPE & KONTROL TRACKING STATUS
         // ==========================================
         const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
         hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
@@ -320,6 +337,20 @@
         hands.onResults((results) => {
             if (!state.isPlaying) return;
             state.shieldActive = false; state.isRecharging = false;
+
+            // --- REAL-TIME TRACKING STATUS LOGIC ---
+            const handCount = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
+            if (handCount > 0) {
+                DOM.trackingStatus.innerText = `PELACAKAN AKTIF (${handCount} TANGAN)`;
+                DOM.trackingStatus.style.background = "rgba(0, 200, 100, 0.15)";
+                DOM.trackingStatus.style.color = "#006622";
+                DOM.trackingStatus.style.borderColor = "#00cc55";
+            } else {
+                DOM.trackingStatus.innerText = "MENCARI TANGAN...";
+                DOM.trackingStatus.style.background = "rgba(255, 100, 100, 0.15)";
+                DOM.trackingStatus.style.color = "#cc0000";
+                DOM.trackingStatus.style.borderColor = "#ff4444";
+            }
 
             if (results.multiHandLandmarks) {
                 for (const landmarks of results.multiHandLandmarks) {
@@ -362,7 +393,7 @@
         const mpCamera = new Camera(DOM.video, { onFrame: async () => { await hands.send({image: DOM.video}); }, width: 640, height: 480 });
 
         mpCamera.start().then(() => {
-            DOM.loadingText.innerText = "Sistem Kamera & Aset 3D Siap!";
+            DOM.loadingText.innerText = "Sistem Kamera & Jalur Raycasting Siap!";
             DOM.loadingText.style.color = "#008800"; DOM.startBtn.disabled = false;
         });
 
@@ -372,39 +403,51 @@
         });
 
         // ==========================================
-        // RENDER LOOP & ANIMASI ASET
+        // RENDER LOOP & UPDATE ANIMASI JALUR LASER
         // ==========================================
         function renderLoop() {
             if (!state.isPlaying) return;
             requestAnimationFrame(renderLoop);
             const now = performance.now();
 
-            // Animasi Aset Tangan (Cincin Berputar & Kristal Denyut)
+            // 1. Animasi Memudarkan Jalur Raycasting (Fade-Out Laser Beam Trail)
+            for (let i = spellBeams.length - 1; i >= 0; i--) {
+                const b = spellBeams[i];
+                b.life -= 0.15; // Berkurang cepat per frame agar menjadi kilatan kilat instan
+                
+                if (b.life <= 0) {
+                    scene.remove(b.mesh);
+                    b.mesh.geometry.dispose();
+                    b.mesh.material.dispose();
+                    spellBeams.splice(i, 1);
+                } else {
+                    b.mesh.material.opacity = b.life;
+                    // Menyusutkan diameter laser seiring waktu pudar (tapering effect)
+                    b.mesh.scale.x = b.life;
+                    b.mesh.scale.z = b.life;
+                }
+            }
+
+            // Animasi Gauntlet
             handMagicRings.forEach(ringObj => {
                 ringObj.mesh.rotation.z += ringObj.speed;
                 ringObj.mesh.rotation.y = Math.sin(now * 0.002) * 0.2;
             });
             handCores.forEach(core => {
-                core.rotation.y += 0.05;
-                // Kembalikan ukuran normal kristal setelah menembak (Lerp)
-                core.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1);
+                core.rotation.y += 0.05; core.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1);
             });
 
-            // Animasi Musuh Kompleks
-            coreCrystal.rotation.y += 0.01;
-            coreCrystal.position.y = Math.sin(now * 0.003) * 0.1; // Inti naik turun (Hovering)
-            
-            armorRings.rotation.y -= 0.02; // Armor berputar berlawanan arah
-            armorRings.rotation.x = Math.sin(now * 0.001) * 0.2; 
-            
+            // Animasi Golem Musuh
+            coreCrystal.rotation.y += 0.01; coreCrystal.position.y = Math.sin(now * 0.003) * 0.1;
+            armorRings.rotation.y -= 0.02; armorRings.rotation.x = Math.sin(now * 0.001) * 0.2; 
             enemyGroup.position.z = THREE.MathUtils.lerp(enemyGroup.position.z, -10, 0.05);
 
-            // Logika Visibilitas & Mana
+            // Shield & Mana Logic
             shield.visible = state.shieldActive;
             if (state.shieldActive) shield.rotation.y += 0.05;
             if (state.isRecharging && state.mana < 100) { state.mana = Math.min(100, state.mana + 0.8); updateUI(); }
 
-            // Serangan Musuh
+            // Serangan Balasan Musuh
             if (now - state.enemyLastAttack > 3000) {
                 state.enemyLastAttack = now;
                 const eBall = new THREE.Mesh(new THREE.DodecahedronGeometry(0.25, 0), new THREE.MeshStandardMaterial({color: 0x220033, emissive: 0x9900ff}));
@@ -413,11 +456,10 @@
                 projectiles.push({ mesh: eBall, dir: targetPos.sub(enemyGroup.position).normalize(), speed: 0.18, isPlayer: false }); scene.add(eBall);
             }
 
-            // Update Proyektil & Partikel (Dihilangkan untuk keringkasan komentar, fungsionalitas sama persis)
+            // Update Proyektil Berjalan & Partikel
             for (let i = projectiles.length - 1; i >= 0; i--) {
-                const p = projectiles[i];
-                p.mesh.position.addScaledVector(p.dir, p.speed);
-                p.mesh.rotation.x += 0.1; p.mesh.rotation.y += 0.1; // Proyektil berputar
+                const p = projectiles[i]; p.mesh.position.addScaledVector(p.dir, p.speed);
+                p.mesh.rotation.x += 0.1; p.mesh.rotation.y += 0.1;
 
                 if (!p.isPlayer && p.mesh.position.distanceTo(camera.position) < 2.5) {
                     scene.remove(p.mesh); projectiles.splice(i, 1);
@@ -436,7 +478,7 @@
                 p.mesh.geometry.attributes.position.needsUpdate = true; p.mesh.material.opacity = p.life;
             }
 
-            // Guncangan
+            // Screen Shake
             if (state.cameraShake > 0) {
                 camera.position.x += (Math.random() - 0.5) * state.cameraShake;
                 camera.position.y += (Math.random() - 0.5) * state.cameraShake;
