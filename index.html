@@ -134,10 +134,14 @@
         <button id="start-btn" disabled>START GAME</button>
     </div>
 
+    <!-- (Autoload active) model loader UI removed - file loads automatically from project root -->
+
     <script type="module">
         // Import Three.js dari Import Map
         import * as THREE from 'three';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+        import { TDSLoader } from 'three/addons/loaders/TDSLoader.js';
 
         const state = {
             isPlaying: false, health: 100, mana: 100, score: 0, enemyHealth: 100,
@@ -212,46 +216,223 @@
 
         // LOAD FILE .GLB MONSTER CATTUS FORTNITE
         const gltfLoader = new GLTFLoader();
+        const objLoader = new OBJLoader();
+        const tdsLoader = new TDSLoader();
         let monsterModel = null;
         let mixer = null;
         const clock = new THREE.Clock();
+        let enemyCollisionCenter = new THREE.Vector3();
+        let enemyCollisionRadius = 1;
+        let enemyTargetZ = -10;
+        let modelHeightOffset = 1.4;
 
-        gltfLoader.load(
-            'cattus_monster_fortnite.glb', 
-            (gltf) => {
-                monsterModel = gltf.scene;
-
-                // Mengatur skala untuk model Fortnite agar pas di dunia Web (Skala di set ke 1.5%)
-                monsterModel.scale.set(0.015, 0.015, 0.015); 
-                monsterModel.position.set(0, -0.2, 0); 
-
-                // Mengaktifkan Shadow untuk setiap bagian model
-                monsterModel.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-                    }
-                });
-
-                enemyGroup.add(monsterModel);
-
-                // Memainkan animasi bawaan jika ada (misal: roar / idle)
-                if (gltf.animations && gltf.animations.length > 0) {
-                    mixer = new THREE.AnimationMixer(monsterModel);
-                    const action = mixer.clipAction(gltf.animations[0]); 
-                    action.play();
-                }
-
-                console.log("Cattus Monster Fortnite Berhasil Dimuat!");
-                DOM.loadingText.innerText += " (Monster Loaded)";
-            },
-            (xhr) => {
-                console.log(Math.round((xhr.loaded / xhr.total * 100)) + '% model termuat');
-            },
-            (error) => {
-                console.error("Gagal memuat file .glb. Pastikan nama file benar dan dijalankan via Live Server.", error);
+        // Default attempt to load a bundled file (if you placed it in project root)
+        // Try to load directly; errors will be shown in console and loading text.
+        function tryLoadDefaultModel() {
+            const defaultPath = 'cattus_monster_fortnite.glb';
+            DOM.loadingText.innerText = `Mencoba memuat default: ${defaultPath} ...`;
+            try {
+                loadGLBFromURL(defaultPath);
+            } catch (e) {
+                console.warn('Autoload failed', e);
+                DOM.loadingText.innerText += " (Tidak menemukan default — gunakan tombol 'Load Model'.)";
             }
-        );
+        }
+
+        // Helper: bersihkan model yang ada
+        function disposeCurrentModel() {
+            if (!monsterModel) return;
+            enemyGroup.remove(monsterModel);
+            monsterModel.traverse((c) => {
+                if (c.isMesh) {
+                    c.geometry && c.geometry.dispose();
+                    if (Array.isArray(c.material)) c.material.forEach(m => m.dispose && m.dispose());
+                    else c.material && c.material.dispose && c.material.dispose();
+                }
+            });
+            monsterModel = null; mixer = null;
+        }
+
+        function loadGLBFromURL(url) {
+            DOM.loadingText.innerText = 'Memuat model...';
+            gltfLoader.load(url, (gltf) => {
+                disposeCurrentModel();
+                monsterModel = gltf.scene;
+                monsterModel.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
+                enemyGroup.add(monsterModel);
+                fitAndCenterModel(monsterModel, 6);
+                // compute collision bounds for projectiles
+                (function(){
+                    try {
+                        monsterModel.updateMatrixWorld(true);
+                        const b = new THREE.Box3().setFromObject(monsterModel);
+                        const s = new THREE.Vector3(); b.getSize(s);
+                        b.getCenter(enemyCollisionCenter);
+                        enemyCollisionRadius = Math.max(s.x, s.y, s.z) * 0.5;
+                    } catch(e) { console.warn('compute collision bounds failed', e); }
+                })();
+                if (gltf.animations && gltf.animations.length > 0) { mixer = new THREE.AnimationMixer(monsterModel); mixer.clipAction(gltf.animations[0]).play(); }
+                DOM.loadingText.innerText = 'Model dimuat (dari URL).';
+            }, (xhr) => {
+                if (xhr.total) console.log(Math.round((xhr.loaded / xhr.total * 100)) + '% model termuat');
+            }, (err) => {
+                console.error('Gagal memuat model dari URL', err); DOM.loadingText.innerText = 'Gagal memuat model dari URL.';
+            });
+        }
+
+        async function loadModelFromFile(file) {
+            const name = file.name.toLowerCase();
+            DOM.loadingText.innerText = `Memuat ${file.name} ...`;
+            try {
+                if (name.endsWith('.glb') || name.endsWith('.gltf')) {
+                    const arrayBuffer = await file.arrayBuffer();
+                    gltfLoader.parse(arrayBuffer, '', (gltf) => {
+                        disposeCurrentModel();
+                        monsterModel = gltf.scene;
+                        monsterModel.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
+                        enemyGroup.add(monsterModel);
+                        fitAndCenterModel(monsterModel, 6);
+                        // compute collision bounds for projectiles
+                        (function(){
+                            try {
+                                monsterModel.updateMatrixWorld(true);
+                                const b = new THREE.Box3().setFromObject(monsterModel);
+                                const s = new THREE.Vector3(); b.getSize(s);
+                                b.getCenter(enemyCollisionCenter);
+                                enemyCollisionRadius = Math.max(s.x, s.y, s.z) * 0.5;
+                            } catch(e) { console.warn('compute collision bounds failed', e); }
+                        })();
+                        if (gltf.animations && gltf.animations.length > 0) { mixer = new THREE.AnimationMixer(monsterModel); mixer.clipAction(gltf.animations[0]).play(); }
+                        DOM.loadingText.innerText = `${file.name} berhasil dimuat.`;
+                    }, (err) => {
+                        console.error('GLTF parse error', err); DOM.loadingText.innerText = 'Gagal parse .glb/.gltf.';
+                    });
+                } else if (name.endsWith('.obj')) {
+                    const text = await file.text();
+                    const obj = objLoader.parse(text);
+                    disposeCurrentModel();
+                    monsterModel = obj;
+                    monsterModel.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
+                    enemyGroup.add(monsterModel);
+                    fitAndCenterModel(monsterModel, 6);
+                    // compute collision bounds for projectiles
+                    (function(){
+                        try {
+                            monsterModel.updateMatrixWorld(true);
+                            const b = new THREE.Box3().setFromObject(monsterModel);
+                            const s = new THREE.Vector3(); b.getSize(s);
+                            b.getCenter(enemyCollisionCenter);
+                            enemyCollisionRadius = Math.max(s.x, s.y, s.z) * 0.5;
+                        } catch(e) { console.warn('compute collision bounds failed', e); }
+                    })();
+                    DOM.loadingText.innerText = `${file.name} (OBJ) berhasil dimuat.`;
+                } else if (name.endsWith('.3ds')) {
+                    const arrayBuffer = await file.arrayBuffer();
+                    tdsLoader.parse(arrayBuffer, (object) => {
+                        disposeCurrentModel();
+                        monsterModel = object;
+                        monsterModel.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
+                        enemyGroup.add(monsterModel);
+                        fitAndCenterModel(monsterModel, 6);
+                        // compute collision bounds for projectiles
+                        (function(){
+                            try {
+                                monsterModel.updateMatrixWorld(true);
+                                const b = new THREE.Box3().setFromObject(monsterModel);
+                                const s = new THREE.Vector3(); b.getSize(s);
+                                b.getCenter(enemyCollisionCenter);
+                                enemyCollisionRadius = Math.max(s.x, s.y, s.z) * 0.5;
+                            } catch(e) { console.warn('compute collision bounds failed', e); }
+                        })();
+                        DOM.loadingText.innerText = `${file.name} (3DS) berhasil dimuat.`;
+                    });
+                } else {
+                    DOM.loadingText.innerText = 'Tipe file tidak didukung. Gunakan .glb/.gltf/.obj/.3ds';
+                }
+            } catch (e) {
+                console.error('Gagal memuat file lokal', e); DOM.loadingText.innerText = 'Gagal memuat file lokal.';
+            }
+        }
+
+        // Drag & drop + input file handling
+        // model input and frame button removed (autoload active)
+
+        function setupDragAndDrop() {
+            const canvas = DOM.gameCanvas;
+            ['dragenter','dragover'].forEach(evt => {
+                canvas.addEventListener(evt, (e) => { e.preventDefault(); canvas.style.outline = '3px dashed rgba(102,0,255,0.6)'; });
+            });
+            ['dragleave','drop'].forEach(evt => {
+                canvas.addEventListener(evt, (e) => { e.preventDefault(); canvas.style.outline = 'none'; });
+            });
+            canvas.addEventListener('drop', (e) => {
+                if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+                    loadModelFromFile(e.dataTransfer.files[0]);
+                }
+            });
+        }
+
+        // drag & drop not required (autoload) - do not call setupDragAndDrop()
+        tryLoadDefaultModel();
+
+        // Auto-fit & center model so it is visible in scene regardless of source scale
+        function fitAndCenterModel(obj, desiredSize = 1.6) {
+            try {
+                obj.updateMatrixWorld(true);
+                const box = new THREE.Box3().setFromObject(obj);
+                const size = new THREE.Vector3(); box.getSize(size);
+                if (size.x === 0 && size.y === 0 && size.z === 0) return;
+                obj.scale.set(1,1,1);
+                const maxDim = Math.max(size.x, size.y, size.z);
+                const scale = desiredSize / maxDim;
+                obj.scale.multiplyScalar(scale);
+                obj.updateMatrixWorld(true);
+
+                // Recompute box after scaling
+                const box2 = new THREE.Box3().setFromObject(obj);
+                const center = new THREE.Vector3(); box2.getCenter(center);
+                // Shift object so center aligns with group's origin
+                obj.position.sub(center);
+                // Raise model so it sits above ground - use a larger offset so big models aren't under the grid
+                const yOffset = Math.abs(box2.min.y) + Math.max(0.5, desiredSize * 0.15);
+                obj.position.y += yOffset + modelHeightOffset;
+
+                // Move enemyGroup closer so model appears larger in view
+                if (typeof enemyGroup !== 'undefined') {
+                    enemyGroup.position.z = -Math.max(4, desiredSize * 1.6);
+                    // keep a stable target z so render loop doesn't override unexpectedly
+                    enemyTargetZ = enemyGroup.position.z;
+                }
+            } catch (e) {
+                console.warn('fitAndCenterModel failed', e);
+            }
+        }
+
+        // Frame model: position camera to frame the provided object and briefly show its bounding box
+        function frameModel(obj) {
+            try {
+                obj.updateMatrixWorld(true);
+                const box = new THREE.Box3().setFromObject(obj);
+                const size = new THREE.Vector3(); box.getSize(size);
+                const center = new THREE.Vector3(); box.getCenter(center);
+                const maxDim = Math.max(size.x, size.y, size.z);
+                if (maxDim === 0) return;
+
+                // Position camera behind and above the model so it's visible
+                const distance = Math.max(1.5, maxDim * 1.8);
+                camera.position.set(center.x, center.y + maxDim * 0.6, center.z + distance);
+                camera.lookAt(center);
+                camera.updateProjectionMatrix();
+
+                // Add a visible box helper for a short time
+                const boxHelper = new THREE.Box3Helper(box, 0xff6600);
+                scene.add(boxHelper);
+                setTimeout(() => { scene.remove(boxHelper); }, 3500);
+                console.log('Framed model. Center:', center, 'size:', size);
+            } catch (e) {
+                console.warn('frameModel failed', e);
+            }
+        }
 
         // CROSSHAIR & SHIELD
         const crosshair = new THREE.Mesh(new THREE.RingGeometry(0.04, 0.06, 32), new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.6 })); crosshair.position.z = -1.5; camera.add(crosshair); 
@@ -326,7 +507,10 @@
             const bulletDir = targetData.point.clone().sub(armGlobalPos).normalize();
 
             const ball = new THREE.Mesh(new THREE.DodecahedronGeometry(0.12, 0), new THREE.MeshBasicMaterial({ color: 0x00ffff }));
-            ball.position.copy(armGlobalPos); projectiles.push({ mesh: ball, dir: bulletDir, speed: 0.7, isPlayer: true }); scene.add(ball);
+            ball.position.copy(armGlobalPos);
+            // mark projectile with whether the initial raycast already counted it as a hit
+            projectiles.push({ mesh: ball, dir: bulletDir, speed: 0.7, isPlayer: true, targetWasHit: targetData.isHit });
+            scene.add(ball);
             
             state.cameraShake = 0.05; if(coreL) coreL.scale.set(1.8, 1.8, 1.8);
 
@@ -440,6 +624,8 @@
             state.enemyLastAttack = performance.now() + 2500; renderLoop();
         });
 
+        // Height offset set to 1.4 (fixed)
+
         // RENDER LOOP (UTAMA)
         function renderLoop() {
             if (!state.isPlaying) return;
@@ -466,7 +652,7 @@
                 monsterModel.position.y = -0.2 + Math.sin(now * 0.002) * 0.05;
             }
             
-            enemyGroup.position.z = THREE.MathUtils.lerp(enemyGroup.position.z, -10, 0.05);
+            enemyGroup.position.z = THREE.MathUtils.lerp(enemyGroup.position.z, enemyTargetZ, 0.05);
 
             shield.visible = state.shieldActive;
             if (state.shieldActive) shield.rotation.y += 0.05;
@@ -486,6 +672,23 @@
 
             for (let i = projectiles.length - 1; i >= 0; i--) {
                 const p = projectiles[i]; p.mesh.position.addScaledVector(p.dir, p.speed); p.mesh.rotation.x += 0.1; p.mesh.rotation.y += 0.1;
+
+                // Player projectile collision with enemy (physical collision when projectile reaches model)
+                if (p.isPlayer && monsterModel && !p.targetWasHit) {
+                    const dist = p.mesh.position.distanceTo(enemyCollisionCenter);
+                    if (dist < enemyCollisionRadius * 0.9) {
+                        // Hit
+                        scene.remove(p.mesh); projectiles.splice(i, 1);
+                        createExplosion(p.mesh.position, 0x00ffff);
+                        state.enemyHealth = Math.max(0, state.enemyHealth - 10);
+                        state.cameraShake = 0.2; enemyGroup.position.z -= 0.4; updateUI();
+                        if (state.enemyHealth <= 0) {
+                            createExplosion(enemyGroup.position, 0x9900ff, 150); state.score += 200; state.enemyHealth = 100;
+                            enemyGroup.position.z = -15; updateUI();
+                        }
+                        continue;
+                    }
+                }
 
                 if (!p.isPlayer && p.mesh.position.distanceTo(camera.position) < 2.5) {
                     scene.remove(p.mesh); projectiles.splice(i, 1);
