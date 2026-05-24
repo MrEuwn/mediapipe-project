@@ -16,7 +16,6 @@
             user-select: none;
         }
 
-        /* Video disembunyikan untuk optimasi performa */
         #webcam {
             display: none; 
         }
@@ -27,39 +26,6 @@
             height: 100%;
         }
 
-        /* Layar Mulai / Permintaan Izin */
-        #start-screen {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: #050510;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
-            z-index: 200;
-        }
-
-        #btn-start {
-            padding: 15px 40px;
-            font-size: 20px;
-            font-weight: bold;
-            cursor: pointer;
-            background: linear-gradient(90deg, #0055ff, #00d2ff);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            box-shadow: 0 0 20px rgba(0, 210, 255, 0.6);
-            transition: transform 0.2s, box-shadow 0.2s;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-        }
-
-        #btn-start:hover {
-            transform: scale(1.05);
-            box-shadow: 0 0 30px rgba(0, 210, 255, 0.9);
-        }
-
-        /* UI Layer - Overlay Fantasi / Futuristik */
         #ui-layer {
             position: absolute;
             top: 0;
@@ -127,7 +93,7 @@
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
             background: #111;
-            display: none; /* Disembunyikan pada awalnya */
+            display: flex; /* Langsung tampilkan loading screen */
             justify-content: center;
             align-items: center;
             flex-direction: column;
@@ -156,16 +122,9 @@
 
     <video id="webcam" autoplay playsinline width="640" height="480"></video>
     
-    <div id="start-screen">
-        <h1 style="color: #00d2ff; text-shadow: 0 0 20px #00d2ff; text-align: center;">ARCANE WEAVER AR</h1>
-        <p style="color: #ccc; max-width: 400px; text-align: center; margin-bottom: 30px;">
-            Game ini membutuhkan akses kamera untuk melacak pergerakan tangan Anda secara real-time. Video tidak akan disimpan atau dikirim ke server.
-        </p>
-        <button id="btn-start">Izinkan Kamera & Mulai</button>
-    </div>
-
     <div id="loading-screen">
-        <div>Menghubungkan ke Arcane Weave (Loading AI & WebGL)...</div>
+        <div>Menghubungkan ke Arcane Weave (Menunggu Izin Kamera)...</div>
+        <div style="font-size: 14px; margin-top: 10px; color: #aaa;">Lihat pop-up di pojok kiri atas browser Anda</div>
     </div>
 
     <div id="game-over">
@@ -195,7 +154,7 @@
 
         // --- SISTEM MANAJEMEN STATE & UI ---
         let gameState = {
-            status: 'loading', // loading, playing, gameover
+            status: 'loading',
             health: 100,
             mana: 100,
             score: 0,
@@ -210,37 +169,6 @@
         const uiLoading = document.getElementById('loading-screen');
         const uiGameOver = document.getElementById('game-over');
         const uiFinalScore = document.getElementById('final-score');
-        
-        const uiStartScreen = document.getElementById('start-screen');
-        const btnStart = document.getElementById('btn-start');
-
-        // --- LOGIKA START SCREEN ---
-        btnStart.addEventListener('click', () => {
-            uiStartScreen.style.display = 'none';
-            uiLoading.style.display = 'flex';
-            
-            init().catch(error => {
-                console.error(error);
-                uiLoading.innerHTML = `
-                    <div style="color: #ff2a2a; text-align: center; max-width: 80%;">
-                        <h2 style="margin-bottom:10px;">Gagal Mengakses Kamera</h2>
-                        <p>${error.message}</p>
-                        <p style="font-size: 16px; color: #aaa;">Pastikan Anda memberikan izin akses kamera (Allow) pada pop-up browser, lalu muat ulang halaman (Refresh).</p>
-                    </div>
-                `;
-            });
-        });
-
-        function updateUI() {
-            uiHealthBar.style.width = Math.max(0, gameState.health) + '%';
-            uiManaBar.style.width = Math.max(0, gameState.mana) + '%';
-            uiScore.innerText = gameState.score;
-            if (gameState.health <= 0 && gameState.status === 'playing') {
-                gameState.status = 'gameover';
-                uiGameOver.style.display = 'flex';
-                uiFinalScore.innerText = "Score: " + gameState.score;
-            }
-        }
 
         // --- VARIABEL GLOBAL CORE ---
         let scene, camera, renderer, raycaster;
@@ -251,21 +179,48 @@
 
         let crosshair;
         let arcaneShield;
-        let enemyMesh;
         let enemies = [];
         let particlesArray = [];
         let cameraShake = { x: 0, y: 0, intensity: 0 };
         let baseCameraPos = new THREE.Vector3(0, 1.6, 0);
 
+        // LANGSUNG JALANKAN INISIALISASI SAAT HALAMAN DIMUAT
+        init().catch(error => {
+            console.error(error);
+            uiLoading.innerHTML = `
+                <div style="color: #ff2a2a; text-align: center; max-width: 80%;">
+                    <h2 style="margin-bottom:10px;">Gagal Mengakses Kamera</h2>
+                    <p>${error.message}</p>
+                    <p style="font-size: 16px; color: #aaa;">Pastikan Anda menekan tombol "Allow" / "Izinkan" pada pop-up browser, lalu muat ulang halaman (Refresh).</p>
+                </div>
+            `;
+        });
+
         async function init() {
             initThree();
+            // Inisialisasi Webcam dipanggil lebih dulu agar pop-up Chrome langsung muncul
+            await initWebcam(); 
+            
+            uiLoading.children[0].innerText = "Memuat Model AI & WebGL...";
+            uiLoading.children[1].style.display = "none";
+
             await initMediaPipe();
-            await initWebcam();
             
             gameState.status = 'playing';
             uiLoading.style.display = 'none';
             
             requestAnimationFrame(renderLoop);
+        }
+
+        function updateUI() {
+            uiHealthBar.style.width = Math.max(0, gameState.health) + '%';
+            uiManaBar.style.width = Math.max(0, gameState.mana) + '%';
+            uiScore.innerText = gameState.score;
+            if (gameState.health <= 0 && gameState.status === 'playing') {
+                gameState.status = 'gameover';
+                uiGameOver.style.display = 'flex';
+                uiFinalScore.innerText = "Score: " + gameState.score;
+            }
         }
 
         function initThree() {
@@ -341,6 +296,7 @@
         async function initWebcam() {
             video = document.getElementById('webcam');
             try {
+                // Meminta pop-up native browser
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: { width: 640, height: 480, facingMode: "user" }
                 });
@@ -351,7 +307,7 @@
                     };
                 });
             } catch (error) {
-                throw new Error("Akses kamera ditolak oleh pengguna atau perangkat tidak ditemukan.");
+                throw new Error("Akses kamera ditolak atau perangkat tidak ditemukan.");
             }
         }
 
