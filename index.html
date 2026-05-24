@@ -3,52 +3,69 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Arcane Wizard AR</title>
+    <title>Arcane Light Spellcaster FPS</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     
     <style>
+        /* CSS Reset dan Styling MODE TERANG */
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
-        body { overflow: hidden; background-color: #000; font-family: 'Segoe UI', Tahoma, sans-serif; }
+        body { overflow: hidden; background-color: #f0f5ff; font-family: 'Segoe UI', Tahoma, sans-serif; color: #333; }
         
         #webcam { display: none; }
         #game-canvas { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
 
+        /* UI Overlay / HUD - Tema Terang dan Magis */
         #ui-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10;
-            pointer-events: none; padding: 20px;
-            color: #fff; text-shadow: 0 0 5px #0ff, 0 0 10px #0ff;
+            pointer-events: none; padding: 25px;
+            color: #220044; text-shadow: 0 0 5px rgba(100, 0, 255, 0.2);
         }
 
         .hud-container { display: flex; justify-content: space-between; align-items: flex-start; }
         
-        .status-box { width: 250px; background: rgba(0, 0, 0, 0.5); border: 2px solid #0ff; border-radius: 8px; padding: 10px; box-shadow: 0 0 15px rgba(0, 255, 255, 0.3); }
-        .bar-bg { width: 100%; height: 20px; background: #333; border-radius: 4px; margin-top: 5px; overflow: hidden; position: relative; }
-        .bar-fill { height: 100%; transition: width 0.2s ease-out; }
-        #health-fill { background: linear-gradient(90deg, #ff0000, #ff4444); width: 100%; }
-        #mana-fill { background: linear-gradient(90deg, #0055ff, #00eeff); width: 100%; }
+        /* Bar Status (Terang) */
+        .status-box { 
+            width: 280px; 
+            background: rgba(255, 255, 255, 0.7); 
+            border: 2px solid #6600ff; 
+            border-radius: 12px; 
+            padding: 15px; 
+            box-shadow: 0 4px 15px rgba(102, 0, 255, 0.2); 
+            backdrop-filter: blur(5px);
+        }
+        .bar-label { font-weight: bold; font-size: 14px; margin-bottom: 3px; display: flex; justify-content: space-between;}
         
-        .score-text { font-size: 28px; font-weight: bold; color: #fff; text-shadow: 0 0 10px #ff00ff; }
+        .bar-bg { width: 100%; height: 22px; background: #e0e0e0; border-radius: 6px; margin-bottom: 12px; overflow: hidden; position: relative; border: 1px solid #ccc; }
+        .bar-fill { height: 100%; transition: width 0.2s ease-out; box-shadow: inset 0 0 10px rgba(255,255,255,0.5); }
         
+        #health-fill { background: linear-gradient(90deg, #ff4444, #ff8888); width: 100%; }
+        #mana-fill { background: linear-gradient(90deg, #00bbff, #88e0ff); width: 100%; }
+        
+        .score-text { font-size: 32px; font-weight: bold; color: #4400aa; text-shadow: 0 2px 5px rgba(100, 0, 255, 0.3); background: rgba(255,255,255,0.5); padding: 5px 15px; border-radius: 10px; }
+        
+        /* Overlay Layar (Terang) */
         #overlay-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 20;
-            background: rgba(0, 0, 0, 0.85); display: flex; flex-direction: column;
-            justify-content: center; align-items: center; color: #0ff; text-align: center;
+            background: rgba(245, 248, 255, 0.95); display: flex; flex-direction: column;
+            justify-content: center; align-items: center; color: #333; text-align: center;
         }
-        #overlay-screen h1 { font-size: 48px; margin-bottom: 10px; text-shadow: 0 0 20px #0ff; }
+        #overlay-screen h1 { font-size: 56px; margin-bottom: 15px; color: #6600ff; text-shadow: 0 2px 10px rgba(102, 0, 255, 0.3); }
+        #loading-text { font-size: 18px; color: #555; margin-bottom: 30px; }
         
         #start-btn {
-            padding: 15px 40px; font-size: 20px; font-weight: bold; color: #000; background: #0ff;
-            border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 0 20px #0ff; pointer-events: auto;
-            transition: transform 0.2s; margin-top: 20px;
+            padding: 18px 50px; font-size: 22px; font-weight: bold; color: #fff; background: #6600ff;
+            border: none; border-radius: 30px; cursor: pointer; box-shadow: 0 5px 20px rgba(102, 0, 255, 0.4); pointer-events: auto;
+            transition: all 0.2s ease;
         }
-        #start-btn:hover { transform: scale(1.1); }
-        #start-btn:disabled { background: #555; box-shadow: none; cursor: not-allowed; }
+        #start-btn:hover { transform: scale(1.05) translateY(-2px); box-shadow: 0 8px 25px rgba(102, 0, 255, 0.5); }
+        #start-btn:disabled { background: #aaa; box-shadow: none; cursor: not-allowed; transform: none; }
 
+        /* Vignette Damage (Merah terang) */
         #damage-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5;
-            background: radial-gradient(circle, rgba(255,0,0,0) 50%, rgba(255,0,0,0.5) 100%);
+            background: radial-gradient(circle, rgba(255,0,0,0) 40%, rgba(255,50,50,0.6) 100%);
             opacity: 0; transition: opacity 0.2s; pointer-events: none;
         }
     </style>
@@ -62,32 +79,38 @@
     <div id="ui-layer">
         <div class="hud-container">
             <div class="status-box">
-                <div>HEALTH: <span id="hp-text">100</span>/100</div>
+                <div class="bar-label"><span>DARAH</span> <span><span id="hp-text">100</span>/100</span></div>
                 <div class="bar-bg"><div id="health-fill"></div></div>
-                <div style="margin-top: 10px;">MANA: <span id="mana-text">100</span>/100</div>
+                
+                <div class="bar-label"><span>MANA</span> <span><span id="mana-text">100</span>/100</span></div>
                 <div class="bar-bg"><div id="mana-fill"></div></div>
             </div>
-            <div class="score-text">SCORE: <span id="score-text">0</span></div>
+            <div class="score-text">SKOR: <span id="score-text">0</span></div>
         </div>
-        <div style="position: absolute; bottom: 20px; width: 100%; text-align: center; font-size: 18px;">
-            <p>Tangan Kanan: Cubit (Pinch) untuk Menembak | Tangan Kiri: Buka Jari (Perisai) & Kepal (Isi Mana)</p>
+        <div style="position: absolute; bottom: 25px; width: 100%; text-align: center; font-size: 16px; font-weight: 500; color: #4400aa;">
+            <p>Tangan Kanan: Cubit Jari (Pinch) untuk Menembak</p>
+            <p>Tangan Kiri: Buka Tangan (Perisai) | Kepalkan Tangan (Isi Mana)</p>
         </div>
     </div>
 
     <div id="overlay-screen">
-        <h1>ARCANE WIZARD</h1>
-        <p id="loading-text">Tunggu sebentar... Meminta Izin Kamera...</p>
+        <h1>ARCANE LIGHT</h1>
+        <p id="loading-text">Menghubungkan ke Cermin Ajaib (Kamera)...</p>
         <button id="start-btn" disabled>START GAME</button>
     </div>
 
     <script type="module">
         import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 
-        // 1. STATE GAME
+        // ==========================================
+        // 1. MANAJEMEN STATE & VARIABEL GLOBAL
+        // ==========================================
         const state = {
             isPlaying: false, health: 100, mana: 100, score: 0,
             lastFireTime: 0, isRecharging: false, shieldActive: false,
-            enemyLastAttack: 0, cameraShake: 0
+            enemyLastAttack: 0, cameraShake: 0,
+            // Menyimpan koordinat tangan yang dihaluskan (Lerp) untuk model FPS
+            smoothedHands: { right: new THREE.Vector3(), left: new THREE.Vector3() }
         };
 
         const DOM = {
@@ -104,84 +127,163 @@
             damageOverlay: document.getElementById('damage-overlay')
         };
 
-        // 2. SETUP THREE.JS
+        // ==========================================
+        // 2. SETUP THREE.JS (MODE TERANG)
+        // ==========================================
         const scene = new THREE.Scene();
-        scene.fog = new THREE.FogExp2(0x050510, 0.05);
+        scene.background = new THREE.Color(0xd0e0ff); // Langit biru terang
+        scene.fog = new THREE.Fog(0xd0e0ff, 5, 25);   // Kabut terang
 
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 1.5, 5);
-        const defaultCamPos = camera.position.clone();
+        camera.position.set(0, 1.6, 0); // Posisi mata setinggi rata-rata manusia
+        scene.add(camera);
 
         const renderer = new THREE.WebGLRenderer({ canvas: DOM.canvas, antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
 
-        scene.add(new THREE.AmbientLight(0x222244, 1.5));
-        const dirLight = new THREE.DirectionalLight(0xaaccff, 2);
-        dirLight.position.set(5, 10, 5); scene.add(dirLight);
+        // Pencahayaan Terang (Light Mode)
+        scene.add(new THREE.AmbientLight(0xffffff, 1.0)); // Cahaya lingkungan putih terang
+        const sunLight = new THREE.DirectionalLight(0xfff5e0, 2.0); // Cahaya matahari hangat
+        sunLight.position.set(5, 10, 7); sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 1024; sunLight.shadow.mapSize.height = 1024;
+        scene.add(sunLight);
 
-        // 3. OBJEK GAME
-        // Crosshair
-        const crosshair = new THREE.Mesh(
-            new THREE.RingGeometry(0.05, 0.07, 32),
-            new THREE.MeshBasicMaterial({ color: 0x00ffff, side: THREE.DoubleSide, transparent: true, opacity: 0.8 })
-        );
-        crosshair.position.z = -2;
-        camera.add(crosshair); scene.add(camera);
+        // Tambahkan Lantai (Ground) agar ada referensi dunia terang
+        const groundGeo = new THREE.PlaneGeometry(100, 100);
+        const groundMat = new THREE.MeshStandardMaterial({ color: 0xe0e8f0, roughness: 0.8 });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true;
+        scene.add(ground);
 
-        // Musuh
+        // ==========================================
+        // 3. OBJEK GAME & MODEL FPS (KARAKTER/TANGAN)
+        // ==========================================
+        
+        // --- A. Karakter FPS: Model Tangan Prosedural (Wizard Hands) ---
+        // Kita membuat grup yang menempel pada kamera untuk efek FPS
+        const fpsArmsGroup = new THREE.Group();
+        camera.add(fpsArmsGroup);
+
+        // Material untuk Jubah (Wizard Sleeve)
+        const sleeveMat = new THREE.MeshStandardMaterial({ color: 0x4400aa, roughness: 0.9, metalness: 0.1 });
+        // Material untuk Tangan (Gloves)
+        const gloveMat = new THREE.MeshStandardMaterial({ color: 0xccaa88, roughness: 0.5 });
+
+        // Fungsi Helper untuk membuat satu lengan prosedural
+        function createArm(isRight) {
+            const armGroup = new THREE.Group();
+            
+            // 1. Lengan Jubah (Silinder terdistorsi)
+            const sleeveGeo = new THREE.CylinderGeometry(0.08, 0.12, 0.6, 16, 1);
+            const sleeve = new THREE.Mesh(sleeveGeo, sleeveMat);
+            sleeve.rotation.x = Math.PI / 2.5; // Miring ke depan
+            sleeve.position.set(0, -0.1, -0.2);
+            armGroup.add(sleeve);
+
+            // 2. Pergelangan Tangan / Sarung Tangan
+            const wristGeo = new THREE.SphereGeometry(0.07, 12, 12);
+            const wrist = new THREE.Mesh(wristGeo, gloveMat);
+            wrist.position.set(0, -0.05, -0.45);
+            armGroup.add(wrist);
+
+            // 3. Telapak Tangan
+            const palmGeo = new THREE.BoxGeometry(0.12, 0.04, 0.14);
+            const palm = new THREE.Mesh(palmGeo, gloveMat);
+            palm.position.set(0, -0.05, -0.55);
+            armGroup.add(palm);
+
+            // Atur posisi awal lengan relatif terhadap kamera
+            armGroup.position.set(isRight ? 0.35 : -0.35, -0.4, -0.1);
+            return armGroup;
+        }
+
+        const armR = createArm(true);  // Tangan Kanan (Offensive)
+        const armL = createArm(false); // Tangan Kiri (Defensive)
+        fpsArmsGroup.add(armR, armL);
+
+        // --- B. Objek Gameplay Lainnya ---
+        // Crosshair Magis (Warna Neon tetap bagus di mode terang)
+        const crosshairGeo = new THREE.RingGeometry(0.04, 0.06, 32);
+        const crosshairMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, side: THREE.DoubleSide, transparent: true, opacity: 0.6 });
+        const crosshair = new THREE.Mesh(crosshairGeo, crosshairMat);
+        crosshair.position.z = -1.5; // Melayang sedikit di depan mata
+        camera.add(crosshair); 
+
+        // Musuh (Warna Neon Ungu/Magma agar kontras dengan langit terang)
         const enemyGroup = new THREE.Group();
-        enemyGroup.position.set(0, 1.5, -10);
-        enemyGroup.add(new THREE.Mesh(new THREE.TorusKnotGeometry(1, 0.3, 100, 16), new THREE.MeshStandardMaterial({ color: 0xff0055, roughness: 0.2, metalness: 0.8 })));
-        enemyGroup.add(new THREE.Mesh(new THREE.TetrahedronGeometry(1.5), new THREE.MeshStandardMaterial({ color: 0x222222, wireframe: true })));
+        enemyGroup.position.set(0, 1.8, -10);
+        const enemyMat = new THREE.MeshStandardMaterial({ color: 0x8800ff, emissive: 0x220044, roughness: 0.1, metalness: 0.9 });
+        enemyGroup.add(new THREE.Mesh(new THREE.TorusKnotGeometry(1, 0.3, 100, 16), enemyMat));
+        enemyGroup.add(new THREE.Mesh(new THREE.TetrahedronGeometry(1.5), new THREE.MeshStandardMaterial({ color: 0x333333, wireframe: true })));
+        enemyGroup.children.forEach(m => m.castShadow = m.receiveShadow = true);
         scene.add(enemyGroup);
 
-        // Shield (Tangan Kiri)
-        const shield = new THREE.Mesh(
-            new THREE.CylinderGeometry(1.5, 1.5, 0.1, 6),
-            new THREE.MeshBasicMaterial({ color: 0x0088ff, wireframe: true, transparent: true, opacity: 0.5 })
-        );
-        shield.rotation.x = Math.PI / 2; shield.position.set(-2, 0, -3); shield.visible = false;
-        camera.add(shield);
+        // Perisai Arcane (Heksagonal, Transparan Biru)
+        const shieldGeo = new THREE.CylinderGeometry(1.5, 1.5, 0.05, 6);
+        const shieldMat = new THREE.MeshBasicMaterial({ color: 0x00ccff, wireframe: true, transparent: true, opacity: 0.3 });
+        const shield = new THREE.Mesh(shieldGeo, shieldMat);
+        shield.rotation.x = Math.PI / 2; shield.position.set(0, 0, -2); shield.visible = false;
+        camera.add(shield); // Menempel di kamera untuk melindungi pandangan
 
         const projectiles = [];
         const particles = [];
 
+        // ==========================================
+        // 4. LOGIKA TEMBAKAN & EFEK (MODE TERANG)
+        // ==========================================
+        const raycaster = new THREE.Raycaster();
+
+        // Helper: Partikel Ledakan (Putih/Sian Terang)
         function createExplosion(pos, color) {
             const geo = new THREE.BufferGeometry();
             const posArr = new Float32Array(150);
             const velArr = [];
             for(let i=0; i<50; i++) {
                 posArr[i*3] = pos.x; posArr[i*3+1] = pos.y; posArr[i*3+2] = pos.z;
-                velArr.push((Math.random() - 0.5)*0.5, (Math.random() - 0.5)*0.5, (Math.random() - 0.5)*0.5);
+                velArr.push((Math.random() - 0.5)*0.3, (Math.random() - 0.5)*0.3, (Math.random() - 0.5)*0.3);
             }
             geo.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
-            const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.2, color: color, transparent: true, blending: THREE.AdditiveBlending }));
+            const ptsMat = new THREE.PointsMaterial({ size: 0.15, color: color, transparent: true, blending: THREE.AdditiveBlending });
+            const pts = new THREE.Points(geo, ptsMat);
             scene.add(pts); particles.push({ mesh: pts, vel: velArr, life: 1.0 });
         }
 
-        const raycaster = new THREE.Raycaster();
-
+        // Tembakan Fireball dari Tangan Kanan
         function shootFireball() {
-            if (state.mana < 10 || performance.now() - state.lastFireTime < 500) return;
+            if (state.mana < 10 || performance.now() - state.lastFireTime < 400) return;
             state.mana -= 10; updateUI(); state.lastFireTime = performance.now();
 
-            const ball = new THREE.Mesh(new THREE.SphereGeometry(0.2), new THREE.MeshBasicMaterial({ color: 0x00ffff }));
-            ball.position.copy(camera.position); ball.position.y -= 1;
+            // Tembakan proyektil (Warna Sian Terang)
+            const ballMat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+            const ball = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 8), ballMat);
             
-            const vector = new THREE.Vector3(crosshair.position.x, crosshair.position.y, 0.5);
-            vector.unproject(camera);
-            const dir = vector.sub(camera.position).normalize();
-            
-            projectiles.push({ mesh: ball, dir: dir, speed: 0.5, isPlayer: true }); scene.add(ball);
+            // Mulai dari posisi Tangan Kanan FPS (armR) di dunia nyata
+            const armGlobalPos = new THREE.Vector3();
+            armR.getWorldPosition(armGlobalPos);
+            ball.position.copy(armGlobalPos);
+            ball.position.y += 0.2; // Sedikit di atas tangan
 
+            // Tentukan arah ke crosshair
+            const crossGlobalPos = new THREE.Vector3();
+            crosshair.getWorldPosition(crossGlobalPos);
+            const dir = crossGlobalPos.sub(armGlobalPos).normalize();
+            
+            projectiles.push({ mesh: ball, dir: dir, speed: 0.6, isPlayer: true }); 
+            scene.add(ball);
+
+            // Sedikit guncangan saat menembak
+            state.cameraShake = 0.05;
+
+            // Hitscan Raycaster untuk impact instan ke musuh
             raycaster.setFromCamera(crosshair.position, camera);
             if (raycaster.intersectObject(enemyGroup, true).length > 0) {
                 setTimeout(() => {
                     createExplosion(enemyGroup.position, 0x00ffff);
                     state.score += 50; state.cameraShake = 0.2; updateUI();
-                    enemyGroup.position.z -= 1; // Knockback
-                }, 200);
+                    enemyGroup.position.z -= 1.5; // Knockback besar
+                }, 150);
             }
         }
 
@@ -193,17 +295,20 @@
 
         function takeDamage(amt) {
             state.health = Math.max(0, state.health - amt); updateUI();
-            state.cameraShake = 0.5; DOM.damageOverlay.style.opacity = 1;
+            state.cameraShake = 0.4; DOM.damageOverlay.style.opacity = 1;
             setTimeout(() => DOM.damageOverlay.style.opacity = 0, 300);
             if (state.health <= 0) {
                 state.isPlaying = false; DOM.overlay.style.display = 'flex';
-                DOM.overlay.innerHTML = `<h1>GAME OVER</h1><p>Score: ${state.score}</p><button onclick="location.reload()" style="padding:15px; margin-top:20px; font-weight:bold; background:#0ff; border:none; cursor:pointer;">RESTART</button>`;
+                DOM.overlay.innerHTML = `<h1>GAME OVER</h1><p style="font-size:24px; color:#333;">Skor Akhir: ${state.score}</p><button onclick="location.reload()" style="padding:15px 40px; margin-top:25px; font-weight:bold; background:#6600ff; color:white; border:none; border-radius:30px; cursor:pointer; font-size:18px;">MAIN LAGI</button>`;
             }
         }
 
-        // 4. SISTEM MEDIAPIPE (GAYA VOXELCRAFT)
+        // ==========================================
+        // 5. SISTEM MEDIAPIPE (GAYA VOXELCRAFT)
+        // ==========================================
+        // Import Hands & Camera dari global window karena dimuat via script tag
         const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-        hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
+        hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
 
         hands.onResults((results) => {
             if (!state.isPlaying) return;
@@ -212,93 +317,152 @@
 
             if (results.multiHandLandmarks) {
                 for (const landmarks of results.multiHandLandmarks) {
-                    const isRightHand = landmarks[0].x > 0.5; // Mirrored screen X
+                    // Deteksi Kanan/Kiri (Kamera di-mirror, X > 0.5 di layar adalah tangan kanan fisik)
+                    const isRightHand = landmarks[0].x > 0.5; 
                     
+                    // Helper jarak 2D ternormalisasi
                     const getDist = (p1, p2) => Math.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2);
 
                     if (isRightHand) {
-                        // Tangan Kanan: Bidik & Tembak
-                        const ndcX = -(landmarks[8].x * 2) + 1; 
+                        // --- TANGAN KANAN: AIMING & MODEL FPS ---
+                        
+                        // 1. Hitung Posisi Target NDC (-1 ke 1) untuk crosshair & model tangan
+                        const ndcX = -(landmarks[8].x * 2) + 1; // Invert X karena mirrored
+                        const ndcY = -(landmarks[8].y * 2) + 1; // Invert Y karena MediaPipe vs Three.js terbalik
+                        
+                        // Perbarui koordinat yang dihaluskan (Lerp) untuk model FPS agar tidak patah-patah
+                        state.smoothedHands.right.x = THREE.MathUtils.lerp(state.smoothedHands.right.x, ndcX, 0.3);
+                        state.smoothedHands.right.y = THREE.MathUtils.lerp(state.smoothedHands.right.y, ndcY, 0.3);
+
+                        // Perbarui posisi Crosshair
+                        crosshair.position.x = state.smoothedHands.right.x * 1.5; // Scale agar jangkauan bidik lebih luas
+                        crosshair.position.y = state.smoothedHands.right.y * 1.0;
+
+                        // Perbarui posisi Tangan Kanan FPS
+                        // Atur posisi dasar + offset pergerakan MediaPipe
+                        armR.position.x = 0.35 + (state.smoothedHands.right.x * 0.15);
+                        armR.position.y = -0.4 + (state.smoothedHands.right.y * 0.1);
+                        // Sedikit rotasi tangan mengikuti bidikan
+                        armR.rotation.y = state.smoothedHands.right.x * 0.2;
+                        armR.rotation.x = state.smoothedHands.right.y * -0.1;
+
+                        // 2. Deteksi Cubit (Pinch) untuk menembak
+                        if (getDist(landmarks[4], landmarks[8]) < 0.04) {
+                            shootFireball();
+                        }
+                    } else {
+                        // --- TANGAN KIRI: SHIELD, RECHARGE, MODEL FPS ---
+                        const ndcX = -(landmarks[8].x * 2) + 1;
                         const ndcY = -(landmarks[8].y * 2) + 1;
                         
-                        crosshair.position.x = THREE.MathUtils.lerp(crosshair.position.x, ndcX * 2, 0.3);
-                        crosshair.position.y = THREE.MathUtils.lerp(crosshair.position.y, ndcY * 1.5, 0.3);
+                        state.smoothedHands.left.x = THREE.MathUtils.lerp(state.smoothedHands.left.x, ndcX, 0.3);
+                        state.smoothedHands.left.y = THREE.MathUtils.lerp(state.smoothedHands.left.y, ndcY, 0.3);
 
-                        // Pinch untuk tembak
-                        if (getDist(landmarks[4], landmarks[8]) < 0.05) shootFireball();
-                        
-                        // Camera Sway
-                        const wristX = -(landmarks[0].x * 2) + 1;
-                        camera.position.x = THREE.MathUtils.lerp(camera.position.x, defaultCamPos.x + (wristX * 0.5), 0.1);
-                    } else {
-                        // Tangan Kiri: Shield & Mana
+                        // Perbarui posisi Tangan Kiri FPS
+                        armL.position.x = -0.35 + (state.smoothedHands.left.x * 0.15);
+                        armL.position.y = -0.4 + (state.smoothedHands.left.y * 0.1);
+                        armL.rotation.y = state.smoothedHands.left.x * 0.2;
+                        armL.rotation.x = state.smoothedHands.left.y * -0.1;
+
+                        // Deteksi Jari Terbuka (Shield) atau Kepalan (Mana)
+                        // Jarak Telunjuk (8) dan Tengah (12) ke Telapak (0)
                         const d8 = getDist(landmarks[8], landmarks[0]);
                         const d12 = getDist(landmarks[12], landmarks[0]);
                         const avgDist = (d8 + d12) / 2;
 
-                        if (avgDist > 0.35) state.shieldActive = true; // Jari Terbuka
-                        else if (avgDist < 0.15) state.isRecharging = true; // Kepal
+                        if (avgDist > 0.38) {
+                            state.shieldActive = true; // Jari Terbuka
+                        } else if (avgDist < 0.18) {
+                            state.isRecharging = true; // Kepalan
+                        }
                     }
                 }
             }
         });
 
-        const cam = new Camera(DOM.video, {
+        // Setup Kamera MediaPipe
+        const mpCamera = new Camera(DOM.video, {
             onFrame: async () => { await hands.send({image: DOM.video}); },
             width: 640, height: 480
         });
 
-        // Start Izin Kamera
-        cam.start().then(() => {
-            DOM.loadingText.innerText = "Sistem & Model AI Siap!";
+        // Jalankan Izin Kamera otomatis saat halaman dimuat
+        mpCamera.start().then(() => {
+            DOM.loadingText.innerText = "Cermin Ajaib Siap! Jarak tangan ideal: 1 meter.";
+            DOM.loadingText.style.color = "#008800";
             DOM.startBtn.disabled = false;
         });
 
+        // Klik Start
         DOM.startBtn.addEventListener('click', () => {
             DOM.overlay.style.display = 'none'; state.isPlaying = true;
-            state.enemyLastAttack = performance.now() + 2000;
+            state.enemyLastAttack = performance.now() + 2000; // Jeda sebelum serangan pertama musuh
             renderLoop();
         });
 
-        // 5. RENDER LOOP
+        // ==========================================
+        // 6. MAIN RENDER LOOP (ANIMASI)
+        // ==========================================
         function renderLoop() {
             if (!state.isPlaying) return;
             requestAnimationFrame(renderLoop);
             const now = performance.now();
 
+            // Logika Visibilitas Shield
             shield.visible = state.shieldActive;
-            if (state.shieldActive) shield.rotation.y += 0.05;
-            if (state.isRecharging && state.mana < 100) { state.mana = Math.min(100, state.mana + 1); updateUI(); }
+            if (state.shieldActive) shield.rotation.y += 0.08; // Animasi putar
+            
+            // Logika Recharge Mana
+            if (state.isRecharging && state.mana < 100) { state.mana = Math.min(100, state.mana + 0.8); updateUI(); }
 
-            // Logika Musuh
+            // Logika Gerakan Tangan FPS (Sedikit goyangan idle)
+            armR.position.y += Math.sin(now * 0.002) * 0.0005;
+            armL.position.y += Math.sin(now * 0.002 + Math.PI) * 0.0005;
+
+            // Logika Musuh (Berputar dan kembali posisi default)
             enemyGroup.rotation.y += 0.01; enemyGroup.rotation.x += 0.005;
-            enemyGroup.position.z = THREE.MathUtils.lerp(enemyGroup.position.z, -10, 0.05);
+            enemyGroup.position.z = THREE.MathUtils.lerp(enemyGroup.position.z, -10, 0.05); // Smooth recovery dari knockback
 
+            // Serangan Musuh (Tiap 3 detik)
             if (now - state.enemyLastAttack > 3000) {
                 state.enemyLastAttack = now;
-                const eBall = new THREE.Mesh(new THREE.SphereGeometry(0.3), new THREE.MeshBasicMaterial({color: 0xff0000}));
-                eBall.position.copy(enemyGroup.position);
-                const dir = new THREE.Vector3().copy(camera.position).sub(enemyGroup.position).normalize();
+                // Proyektil musuh (Warna Merah Kegelapan agar kontras dengan mode terang)
+                const eBallMat = new THREE.MeshStandardMaterial({color: 0x440000, emissive: 0xff0000});
+                const eBall = new THREE.Mesh(new THREE.SphereGeometry(0.3), eBallMat);
+                eBall.position.copy(enemyGroup.position); eBall.castShadow = true;
+                
+                // Arah ke posisi mata pemain
+                const targetPos = new THREE.Vector3().copy(camera.position); targetPos.y -= 0.2;
+                const dir = targetPos.sub(enemyGroup.position).normalize();
+                
                 projectiles.push({ mesh: eBall, dir: dir, speed: 0.15, isPlayer: false }); scene.add(eBall);
             }
 
-            // Update Proyektil
+            // Update Semua Proyektil
             for (let i = projectiles.length - 1; i >= 0; i--) {
                 const p = projectiles[i];
                 p.mesh.position.addScaledVector(p.dir, p.speed);
 
-                if (!p.isPlayer && p.mesh.position.distanceTo(camera.position) < 2.0) {
+                // Jika proyektil musuh mendekati pemain
+                if (!p.isPlayer && p.mesh.position.distanceTo(camera.position) < 2.2) {
                     scene.remove(p.mesh); projectiles.splice(i, 1);
-                    if (state.shieldActive) { createExplosion(p.mesh.position, 0x0088ff); state.score += 10; updateUI(); } 
-                    else { createExplosion(p.mesh.position, 0xff0000); takeDamage(20); }
+                    if (state.shieldActive) { 
+                        createExplosion(p.mesh.position, 0x00ccff); // Diblokir perisai biru
+                        state.score += 10; updateUI(); 
+                    } 
+                    else { 
+                        createExplosion(p.mesh.position, 0xff0000); // Kena darah
+                        takeDamage(20); 
+                    }
                     continue;
                 }
-                if (p.mesh.position.lengthSq() > 400) { scene.remove(p.mesh); projectiles.splice(i, 1); }
+                // Hapus proyektil yang terlalu jauh
+                if (p.mesh.position.lengthSq() > 600) { scene.remove(p.mesh); projectiles.splice(i, 1); }
             }
 
-            // Update Partikel
+            // Update Partikel Ledakan
             for (let i = particles.length - 1; i >= 0; i--) {
-                const p = particles[i]; p.life -= 0.05;
+                const p = particles[i]; p.life -= 0.04;
                 if (p.life <= 0) {
                     scene.remove(p.mesh); p.mesh.geometry.dispose(); p.mesh.material.dispose();
                     particles.splice(i, 1); continue;
@@ -311,16 +475,20 @@
                 p.mesh.material.opacity = p.life;
             }
 
-            // Guncangan Kamera
+            // Efek Guncangan Kamera
             if (state.cameraShake > 0) {
                 camera.position.x += (Math.random() - 0.5) * state.cameraShake;
                 camera.position.y += (Math.random() - 0.5) * state.cameraShake;
-                state.cameraShake -= 0.02;
-            } else { state.cameraShake = 0; }
+                state.cameraShake *= 0.9; // Decay guncangan
+                if(state.cameraShake < 0.001) state.cameraShake = 0;
+            } else { 
+                camera.position.x = 0; camera.position.y = 1.6; // Reset posisi mata
+            }
 
             renderer.render(scene, camera);
         }
 
+        // Resizing Window
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight);
