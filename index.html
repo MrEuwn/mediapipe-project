@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Arcane Light - Left Hand Shooter & Trajectory Edition</title>
+    <title>Arcane Light - True Crosshair Aiming Edition</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
@@ -55,7 +55,7 @@
             border: 3px solid #6600ff; border-radius: 12px;
             box-shadow: 0 5px 25px rgba(102, 0, 255, 0.5);
             overflow: hidden; z-index: 15;
-            transform: scaleX(-1); /* Efek Cermin agar arah gerakan tangan natural */
+            transform: scaleX(-1); /* Efek Cermin */
             background: #000;
         }
         #tracking-canvas, #webcam {
@@ -166,7 +166,7 @@
         // PLAYER HANDS SYSTEM
         const fpsArmsGroup = new THREE.Group(); camera.add(fpsArmsGroup);
         const handMagicRings = []; const handCores = []; const spellBeams = [];
-        let coreR, coreL; // Variabel penampung core kristal tangan secara eksplisit
+        let coreL;
 
         function createAdvancedArm(isRight) {
             const armGroup = new THREE.Group();
@@ -183,7 +183,7 @@
 
             const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.04, 0), coreMat); core.position.set(0, 0.03, -0.5); armGroup.add(core); 
             handCores.push(core);
-            if (isRight) coreR = core; else coreL = core;
+            if (!isRight) coreL = core;
 
             const magicRing = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.005, 8, 32), new THREE.MeshBasicMaterial({ color: isRight ? 0xffa500 : 0x00ffff, transparent: true, opacity: 0.7, side: THREE.DoubleSide }));
             magicRing.position.set(0, 0, -0.4); armGroup.add(magicRing); handMagicRings.push({ mesh: magicRing, speed: isRight ? 0.05 : -0.05 });
@@ -230,24 +230,41 @@
             scene.add(pts); particles.push({ mesh: pts, vel: velArr, life: 1.0 });
         }
 
-        // UPDATE TRAJECTORY (REAL-TIME LINE) - KELUAR DARI TANGAN KIRI
+        // AMBIL TITIK KOORDINAT DUNIA YANG DITUNJUK CROSSHAIR (TRUE AIM)
+        function getCrosshairWorldTarget() {
+            const camGlobalPos = new THREE.Vector3(); camera.getWorldPosition(camGlobalPos);
+            const crossGlobalPos = new THREE.Vector3(); crosshair.getWorldPosition(crossGlobalPos);
+            
+            // Vektor arah pandang lurus dari kamera menembus crosshair bundar
+            const shootDir = crossGlobalPos.clone().sub(camGlobalPos).normalize();
+            
+            raycaster.set(camGlobalPos, shootDir);
+            const intersects = raycaster.intersectObject(enemyGroup, true);
+            
+            if (intersects.length > 0) {
+                return { point: intersects[0].point, isHit: true };
+            } else {
+                // Jika tidak mengenai monster, proyeksikan titik 20 unit lurus ke depan
+                return { point: camGlobalPos.clone().addScaledVector(shootDir, 20), isHit: false };
+            }
+        }
+
+        // UPDATE TRAJECTORY LINE (KELUAR DARI TANGAN KIRI MENUJU PUSAT CROSSHAIR)
         function updateTrajectoryLine() {
             if (!state.isPlaying || !state.leftHandTracked) {
                 trajectoryPoints.forEach(d => d.visible = false); return;
             }
+            const targetData = getCrosshairWorldTarget();
+            
             const armGlobalPos = new THREE.Vector3(); armL.getWorldPosition(armGlobalPos); armGlobalPos.y += 0.03;
-            const crossGlobalPos = new THREE.Vector3(); crosshair.getWorldPosition(crossGlobalPos);
-            const dir = crossGlobalPos.clone().sub(armGlobalPos).normalize();
+            const bulletDir = targetData.point.clone().sub(armGlobalPos).normalize();
+            const distToTarget = armGlobalPos.distanceTo(targetData.point);
 
-            raycaster.set(armGlobalPos, dir); const intersects = raycaster.intersectObject(enemyGroup, true);
-            let maxDist = 20;
-            if (intersects.length > 0) maxDist = armGlobalPos.distanceTo(intersects[0].point);
-
-            const step = maxDist / trajectoryPoints.length;
+            const step = distToTarget / trajectoryPoints.length;
             trajectoryPoints.forEach((dot, index) => {
-                const dist = step * (index + 1);
-                if (dist <= maxDist) {
-                    dot.position.copy(armGlobalPos).addScaledVector(dir, dist); dot.visible = true;
+                const currentDist = step * (index + 1);
+                if (currentDist <= distToTarget) {
+                    dot.position.copy(armGlobalPos).addScaledVector(bulletDir, currentDist); dot.visible = true;
                     dot.material.opacity = 0.2 + Math.sin(performance.now() * 0.01 + index) * 0.2;
                 } else {
                     dot.visible = false;
@@ -255,28 +272,25 @@
             });
         }
 
-        // SHOOT FUNCTION - SINKRONISASI TANGAN KIRI 100% LURUS
+        // SHOOT FUNCTION - SINKRON TEMBAKAN TANGAN KIRI PAS KE TENGAH CROSSHAIR
         function shootFireball() {
             if (state.mana < 10 || performance.now() - state.lastFireTime < 400) return;
             state.mana -= 10; updateUI(); state.lastFireTime = performance.now();
 
-            // Titik awal tembakan dipindah secara presisi ke Tangan Kiri
+            const targetData = getCrosshairWorldTarget();
             const armGlobalPos = new THREE.Vector3(); armL.getWorldPosition(armGlobalPos); armGlobalPos.y += 0.03;
-            const crossGlobalPos = new THREE.Vector3(); crosshair.getWorldPosition(crossGlobalPos);
-            const dir = crossGlobalPos.clone().sub(armGlobalPos).normalize();
+            
+            // Arah laju peluru dihitung dari Ujung Tangan Kiri lurus menuju Target Crosshair
+            const bulletDir = targetData.point.clone().sub(armGlobalPos).normalize();
 
             const ball = new THREE.Mesh(new THREE.DodecahedronGeometry(0.12, 0), new THREE.MeshBasicMaterial({ color: 0x00ffff }));
-            ball.position.copy(armGlobalPos); projectiles.push({ mesh: ball, dir: dir, speed: 0.7, isPlayer: true }); scene.add(ball);
+            ball.position.copy(armGlobalPos); projectiles.push({ mesh: ball, dir: bulletDir, speed: 0.7, isPlayer: true }); scene.add(ball);
             
             state.cameraShake = 0.05; if(coreL) coreL.scale.set(1.8, 1.8, 1.8);
 
-            raycaster.set(armGlobalPos, dir); const intersects = raycaster.intersectObject(enemyGroup, true);
-            let endPoint = armGlobalPos.clone().addScaledVector(dir, 20); 
-            
-            if (intersects.length > 0) {
-                endPoint.copy(intersects[0].point); 
+            if (targetData.isHit) {
                 setTimeout(() => {
-                    createExplosion(intersects[0].point, 0x00ffff);
+                    createExplosion(targetData.point, 0x00ffff);
                     state.enemyHealth = Math.max(0, state.enemyHealth - 20); state.cameraShake = 0.2; enemyGroup.position.z -= 0.8; updateUI();
                     
                     if (state.enemyHealth <= 0) {
@@ -286,10 +300,10 @@
                 }, 150);
             }
 
-            const beamLength = armGlobalPos.distanceTo(endPoint);
+            const beamLength = armGlobalPos.distanceTo(targetData.point);
             const beamMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 1, 6), new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.9 }));
-            beamMesh.scale.set(1, beamLength, 1); beamMesh.position.copy(armGlobalPos).add(endPoint).multiplyScalar(0.5);
-            beamMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+            beamMesh.scale.set(1, beamLength, 1); beamMesh.position.copy(armGlobalPos).add(targetData.point).multiplyScalar(0.5);
+            beamMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), bulletDir);
             scene.add(beamMesh); spellBeams.push({ mesh: beamMesh, life: 1.0 });
         }
 
@@ -307,12 +321,11 @@
             }
         }
 
-        // MEDIAPIPE GESTURE & CAMERA RENDER SYSTEM
+        // MEDIAPIPE GESTURE & CAMERA SYSTEM
         const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
         hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
 
         hands.onResults((results) => {
-            // Gambar Feed Kamera & Skeleton di Pip Preview Box
             trackingCtx.save(); trackingCtx.clearRect(0, 0, DOM.trackingCanvas.width, DOM.trackingCanvas.height);
             trackingCtx.drawImage(results.image, 0, 0, DOM.trackingCanvas.width, DOM.trackingCanvas.height);
             if (results.multiHandLandmarks) {
@@ -337,7 +350,6 @@
 
             if (results.multiHandLandmarks) {
                 results.multiHandLandmarks.forEach((landmarks) => {
-                    // Karena kamera dicermin (scaleX(-1)), landmarks[0].x <= 0.5 adalah area sisi kiri layar (Tangan Kiri)
                     const isRightSideOfScreen = landmarks[0].x > 0.5; 
                     const getDist = (p1, p2) => Math.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2);
 
@@ -347,8 +359,11 @@
                     const d16 = getDist(landmarks[16], landmarks[0]); const d20 = getDist(landmarks[20], landmarks[0]);
                     const avgDist = (d8 + d12 + d16 + d20) / 4;
 
-                    if (!isRightSideOfScreen) {
-                        // TANGAN KIRI (SISI KIRI LAYAR) -> AIM, TRAJECTORY, & SHOOT
+                    // ==========================================================
+                    // SINKRONISASI INVERT TANGAN SEIRAMA DENGAN KAMERA CERMIN
+                    // ==========================================================
+                    if (isRightSideOfScreen) {
+                        // FISIK TANGAN KIRI ANDA -> AIM & TEMBAK (Keluar dari armL)
                         state.leftHandTracked = true;
                         state.smoothedHands.left.x = THREE.MathUtils.lerp(state.smoothedHands.left.x, ndcX, 0.3);
                         state.smoothedHands.left.y = THREE.MathUtils.lerp(state.smoothedHands.left.y, ndcY, 0.3);
@@ -359,15 +374,15 @@
 
                         if (avgDist < 0.20) shootFireball(); // Mengepal -> Tembak
                     } else {
-                        // TANGAN KANAN (SISI KANAN LAYAR) -> SHIELD & MANA CHARGE
+                        // FISIK TANGAN KANAN ANDA -> SHIELD & RECHARGE (Keluar dari armR)
                         state.smoothedHands.right.x = THREE.MathUtils.lerp(state.smoothedHands.right.x, ndcX, 0.3);
                         state.smoothedHands.right.y = THREE.MathUtils.lerp(state.smoothedHands.right.y, ndcY, 0.3);
 
                         armR.position.x = 0.4 + (state.smoothedHands.right.x * 0.15); armR.position.y = -0.4 + (state.smoothedHands.right.y * 0.1);
                         armR.rotation.y = state.smoothedHands.right.x * 0.3; armR.rotation.x = state.smoothedHands.right.y * -0.2;
 
-                        if (avgDist > 0.36) state.shieldActive = true;       // Terbuka -> Shield Aktif
-                        else if (avgDist < 0.20) state.isRecharging = true;  // Mengepal -> Isi Ulang Mana
+                        if (avgDist > 0.36) state.shieldActive = true;       // Terbuka -> Shield
+                        else if (avgDist < 0.20) state.isRecharging = true;  // Mengepal -> Mana
                     }
                 });
             }
@@ -376,7 +391,7 @@
         const mpCamera = new Camera(DOM.video, { onFrame: async () => { await hands.send({image: DOM.video}); }, width: 640, height: 480 });
 
         mpCamera.start().then(() => {
-            DOM.loadingText.innerText = "Sistem Kamera & Penyelarasan Balik Tangan Siap!";
+            DOM.loadingText.innerText = "Sistem Aiming Presisi & Sinkronisasi Tangan Siap!";
             DOM.loadingText.style.color = "#008800"; DOM.startBtn.disabled = false;
         });
 
@@ -391,7 +406,7 @@
             requestAnimationFrame(renderLoop);
             const now = performance.now();
 
-            // Render Trajectory Line secara real-time
+            // Render lintasan proyektil secara real-time mengunci target crosshair
             updateTrajectoryLine();
 
             for (let i = spellBeams.length - 1; i >= 0; i--) {
