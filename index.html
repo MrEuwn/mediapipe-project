@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Arcane Light - Perfect Aim Raycast Edition</title>
+    <title>Arcane Light - Camera Tracker Edition</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
     
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
         body { overflow: hidden; background-color: #f0f5ff; font-family: 'Segoe UI', Tahoma, sans-serif; color: #333; }
         
-        #webcam { display: none; }
         #game-canvas { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
 
         #ui-layer {
@@ -29,10 +29,7 @@
             box-shadow: 0 4px 20px rgba(102, 0, 255, 0.3); backdrop-filter: blur(8px);
         }
         
-        #enemy-hud {
-            width: 340px; border-color: #cc0000;
-            box-shadow: 0 4px 20px rgba(200, 0, 0, 0.2);
-        }
+        #enemy-hud { width: 340px; border-color: #cc0000; box-shadow: 0 4px 20px rgba(200, 0, 0, 0.2); }
         
         .bar-label { font-weight: bold; font-size: 14px; margin-bottom: 3px; display: flex; justify-content: space-between;}
         .bar-bg { width: 100%; height: 22px; background: #ddd; border-radius: 6px; margin-bottom: 12px; overflow: hidden; position: relative; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); }
@@ -50,7 +47,23 @@
         }
 
         .score-text { font-size: 32px; font-weight: bold; color: #4400aa; text-shadow: 0 2px 5px rgba(100, 0, 255, 0.3); background: rgba(255,255,255,0.7); padding: 8px 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(102,0,255,0.2); }
+
+        /* ======== TAMPILAN KAMERA KECIL (PiP) ======== */
+        #camera-preview {
+            position: absolute; bottom: 25px; right: 25px;
+            width: 240px; height: 180px;
+            border: 3px solid #6600ff; border-radius: 12px;
+            box-shadow: 0 5px 25px rgba(102, 0, 255, 0.5);
+            overflow: hidden; z-index: 15;
+            transform: scaleX(-1); /* Efek Cermin agar gerakan intuitif */
+            background: #000;
+        }
+        #tracking-canvas, #webcam {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;
+        }
+        #webcam { display: none; /* Kita hanya tampilkan hasil coretan dari canvas 2D */ }
         
+        /* Overlay Layar Kematian / Start */
         #overlay-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 20;
             background: radial-gradient(circle, rgba(245, 248, 255, 0.95) 0%, rgba(200, 215, 255, 0.98) 100%);
@@ -76,7 +89,6 @@
 </head>
 <body>
 
-    <video id="webcam" autoplay playsinline muted width="640" height="480"></video>
     <canvas id="game-canvas"></canvas>
     <div id="damage-overlay"></div>
 
@@ -97,9 +109,15 @@
 
             <div class="score-text">SCORE: <span id="score-text">0</span></div>
         </div>
+        
         <div style="position: absolute; bottom: 25px; width: 100%; text-align: center; font-size: 16px; font-weight: 600; color: #330088; background: rgba(255,255,255,0.6); padding: 10px 0; left: 0;">
-            Kanan: Mengepal (Tembak) | Kiri: Terbuka 5 Jari (Perisai) & Mengepal (Isi Mana)
+            Kanan: Mengepal (Tembak) | Kiri: Terbuka (Perisai) & Mengepal (Isi Mana)
         </div>
+    </div>
+
+    <div id="camera-preview">
+        <video id="webcam" autoplay playsinline muted width="640" height="480"></video>
+        <canvas id="tracking-canvas" width="640" height="480"></canvas>
     </div>
 
     <div id="overlay-screen">
@@ -119,7 +137,8 @@
         };
 
         const DOM = {
-            video: document.getElementById('webcam'), canvas: document.getElementById('game-canvas'),
+            video: document.getElementById('webcam'), gameCanvas: document.getElementById('game-canvas'),
+            trackingCanvas: document.getElementById('tracking-canvas'), // Canvas untuk gambar kamera 2D
             hpFill: document.getElementById('health-fill'), manaFill: document.getElementById('mana-fill'),
             enemyHpFill: document.getElementById('enemy-health-fill'), enemyHpText: document.getElementById('enemy-hp-text'),
             scoreText: document.getElementById('score-text'), hpText: document.getElementById('hp-text'),
@@ -127,36 +146,26 @@
             startBtn: document.getElementById('start-btn'), loadingText: document.getElementById('loading-text'),
             damageOverlay: document.getElementById('damage-overlay'), trackingStatus: document.getElementById('tracking-status')
         };
+        const trackingCtx = DOM.trackingCanvas.getContext('2d');
 
         // SETUP THREE.JS
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xddeeff);
-        scene.fog = new THREE.Fog(0xddeeff, 5, 30);
+        scene.background = new THREE.Color(0xddeeff); scene.fog = new THREE.Fog(0xddeeff, 5, 30);
+        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000); camera.position.set(0, 1.6, 0); scene.add(camera);
 
-        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 1.6, 0);
-        scene.add(camera);
-
-        const renderer = new THREE.WebGLRenderer({ canvas: DOM.canvas, antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        const renderer = new THREE.WebGLRenderer({ canvas: DOM.gameCanvas, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight); renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
         scene.add(new THREE.AmbientLight(0xffffff, 1.2));
-        const sunLight = new THREE.DirectionalLight(0xfffaee, 2.5);
-        sunLight.position.set(10, 15, 10); sunLight.castShadow = true;
-        scene.add(sunLight);
-
-        const gridHelper = new THREE.GridHelper(100, 100, 0x88bbff, 0xffffff);
-        gridHelper.position.y = 0.01; scene.add(gridHelper);
+        const sunLight = new THREE.DirectionalLight(0xfffaee, 2.5); sunLight.position.set(10, 15, 10); sunLight.castShadow = true; scene.add(sunLight);
+        
+        const gridHelper = new THREE.GridHelper(100, 100, 0x88bbff, 0xffffff); gridHelper.position.y = 0.01; scene.add(gridHelper);
         const ground = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: 0xcce0ff, roughness: 0.9 }));
         ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
 
         // PLAYER HANDS SYSTEM
-        const fpsArmsGroup = new THREE.Group();
-        camera.add(fpsArmsGroup);
-
+        const fpsArmsGroup = new THREE.Group(); camera.add(fpsArmsGroup);
         const handMagicRings = []; const handCores = []; const spellBeams = [];
 
         function createAdvancedArm(isRight) {
@@ -166,148 +175,95 @@
             const coreMat = new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x00aaff, emissiveIntensity: 2 });
             
             const sleeveGeo = new THREE.CylinderGeometry(0.06, 0.09, 0.5, 16);
-            const sleeve = new THREE.Mesh(sleeveGeo, darkClothMat);
-            sleeve.position.set(0, 0, -0.2); sleeve.rotation.x = Math.PI / 2; armGroup.add(sleeve);
-
+            const sleeve = new THREE.Mesh(sleeveGeo, darkClothMat); sleeve.position.set(0, 0, -0.2); sleeve.rotation.x = Math.PI / 2; armGroup.add(sleeve);
             const bracerGeo = new THREE.CylinderGeometry(0.08, 0.11, 0.35, 8);
-            const bracer = new THREE.Mesh(bracerGeo, armorMat);
-            bracer.position.set(0, 0, -0.25); bracer.rotation.x = Math.PI / 2; armGroup.add(bracer);
-
+            const bracer = new THREE.Mesh(bracerGeo, armorMat); bracer.position.set(0, 0, -0.25); bracer.rotation.x = Math.PI / 2; armGroup.add(bracer);
             const palmGeo = new THREE.BoxGeometry(0.12, 0.05, 0.14);
-            const palm = new THREE.Mesh(palmGeo, armorMat);
-            palm.position.set(0, 0, -0.5); armGroup.add(palm);
+            const palm = new THREE.Mesh(palmGeo, armorMat); palm.position.set(0, 0, -0.5); armGroup.add(palm);
 
-            const coreGeo = new THREE.OctahedronGeometry(0.04, 0);
-            const core = new THREE.Mesh(coreGeo, coreMat);
-            core.position.set(0, 0.03, -0.5); armGroup.add(core); handCores.push(core);
+            const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.04, 0), coreMat); core.position.set(0, 0.03, -0.5); armGroup.add(core); handCores.push(core);
+            const magicRing = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.005, 8, 32), new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.7, side: THREE.DoubleSide }));
+            magicRing.position.set(0, 0, -0.4); armGroup.add(magicRing); handMagicRings.push({ mesh: magicRing, speed: isRight ? 0.05 : -0.05 });
 
-            const ringGeo = new THREE.TorusGeometry(0.15, 0.005, 8, 32);
-            const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.7, side: THREE.DoubleSide });
-            const magicRing = new THREE.Mesh(ringGeo, ringMat);
-            magicRing.position.set(0, 0, -0.4); armGroup.add(magicRing);
-            handMagicRings.push({ mesh: magicRing, speed: isRight ? 0.05 : -0.05 });
-
-            armGroup.position.set(isRight ? 0.4 : -0.4, -0.4, -0.2);
-            return armGroup;
+            armGroup.position.set(isRight ? 0.4 : -0.4, -0.4, -0.2); return armGroup;
         }
 
-        const armR = createAdvancedArm(true); const armL = createAdvancedArm(false);
-        fpsArmsGroup.add(armR, armL);
+        const armR = createAdvancedArm(true); const armL = createAdvancedArm(false); fpsArmsGroup.add(armR, armL);
 
         // ENEMY TARGET GOLEM
-        const enemyGroup = new THREE.Group();
-        enemyGroup.position.set(0, 1.8, -10);
-        
-        const crystalMat = new THREE.MeshPhysicalMaterial({
-            color: 0x9900ff, emissive: 0x330066, emissiveIntensity: 0.5, metalness: 0.1, roughness: 0.1, transmission: 0.9, thickness: 0.5,
-        });
+        const enemyGroup = new THREE.Group(); enemyGroup.position.set(0, 1.8, -10);
+        const crystalMat = new THREE.MeshPhysicalMaterial({ color: 0x9900ff, emissive: 0x330066, emissiveIntensity: 0.5, metalness: 0.1, roughness: 0.1, transmission: 0.9, thickness: 0.5 });
         const darkMetalMat = new THREE.MeshStandardMaterial({ color: 0x222233, metalness: 0.9, roughness: 0.4 });
 
-        const coreCrystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.8, 0), crystalMat);
-        coreCrystal.castShadow = true; enemyGroup.add(coreCrystal);
-
+        const coreCrystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.8, 0), crystalMat); coreCrystal.castShadow = true; enemyGroup.add(coreCrystal);
         const armorRings = new THREE.Group();
-        const ring1 = new THREE.Mesh(new THREE.TorusGeometry(1.2, 0.1, 8, 16), darkMetalMat);
-        ring1.rotation.x = Math.PI / 2; ring1.castShadow = true; armorRings.add(ring1);
-
-        const ring2 = new THREE.Mesh(new THREE.TorusGeometry(1.4, 0.05, 8, 16), darkMetalMat);
-        ring2.rotation.y = Math.PI / 4; ring2.castShadow = true;
+        const ring1 = new THREE.Mesh(new THREE.TorusGeometry(1.2, 0.1, 8, 16), darkMetalMat); ring1.rotation.x = Math.PI / 2; ring1.castShadow = true; armorRings.add(ring1);
+        const ring2 = new THREE.Mesh(new THREE.TorusGeometry(1.4, 0.05, 8, 16), darkMetalMat); ring2.rotation.y = Math.PI / 4; ring2.castShadow = true;
         for(let i = 0; i < 4; i++) {
             const spike = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.5, 4), darkMetalMat);
-            spike.position.set(Math.cos(i * Math.PI/2) * 1.4, Math.sin(i * Math.PI/2) * 1.4, 0);
-            spike.rotation.z = -(i * Math.PI/2); ring2.add(spike);
+            spike.position.set(Math.cos(i * Math.PI/2) * 1.4, Math.sin(i * Math.PI/2) * 1.4, 0); spike.rotation.z = -(i * Math.PI/2); ring2.add(spike);
         }
         armorRings.add(ring2); enemyGroup.add(armorRings); scene.add(enemyGroup);
 
         // CROSSHAIR & SHIELD
-        const crosshair = new THREE.Mesh(new THREE.RingGeometry(0.04, 0.06, 32), new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.6 }));
-        crosshair.position.z = -1.5; camera.add(crosshair); 
-
-        const shield = new THREE.Mesh(new THREE.IcosahedronGeometry(2, 1), new THREE.MeshBasicMaterial({ color: 0x00ccff, wireframe: true, transparent: true, opacity: 0.2 }));
-        shield.position.set(0, 0, -2); shield.visible = false; camera.add(shield);
+        const crosshair = new THREE.Mesh(new THREE.RingGeometry(0.04, 0.06, 32), new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.6 })); crosshair.position.z = -1.5; camera.add(crosshair); 
+        const shield = new THREE.Mesh(new THREE.IcosahedronGeometry(2, 1), new THREE.MeshBasicMaterial({ color: 0x00ccff, wireframe: true, transparent: true, opacity: 0.2 })); shield.position.set(0, 0, -2); shield.visible = false; camera.add(shield);
 
         const projectiles = []; const particles = []; const raycaster = new THREE.Raycaster();
 
         function createExplosion(pos, color, particleCount = 50) {
             const geo = new THREE.BufferGeometry(); const posArr = new Float32Array(particleCount * 3); const velArr = [];
             for(let i=0; i<particleCount; i++) {
-                posArr[i*3] = pos.x; posArr[i*3+1] = pos.y; posArr[i*3+2] = pos.z;
-                velArr.push((Math.random() - 0.5)*0.4, (Math.random() - 0.5)*0.4, (Math.random() - 0.5)*0.4);
+                posArr[i*3] = pos.x; posArr[i*3+1] = pos.y; posArr[i*3+2] = pos.z; velArr.push((Math.random() - 0.5)*0.4, (Math.random() - 0.5)*0.4, (Math.random() - 0.5)*0.4);
             }
-            geo.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
-            const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.15, color: color, blending: THREE.AdditiveBlending }));
+            geo.setAttribute('position', new THREE.BufferAttribute(posArr, 3)); const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.15, color: color, blending: THREE.AdditiveBlending }));
             scene.add(pts); particles.push({ mesh: pts, vel: velArr, life: 1.0 });
         }
 
-        // ==========================================
-        // FITUR SINKRONISASI AIM RAYCAST (PERBAIKAN UTAMA)
-        // ==========================================
+        // SHOOT FUNCTION
         function shootFireball() {
             if (state.mana < 10 || performance.now() - state.lastFireTime < 400) return;
             state.mana -= 10; updateUI(); state.lastFireTime = performance.now();
 
-            // 1. Ambil posisi global pangkal tembakan (Tangan Kanan)
             const armGlobalPos = new THREE.Vector3(); armR.getWorldPosition(armGlobalPos); armGlobalPos.y += 0.03;
-            
-            // 2. Ambil posisi global titik crosshair di dunia 3D
             const crossGlobalPos = new THREE.Vector3(); crosshair.getWorldPosition(crossGlobalPos);
-            
-            // 3. Kalkulasikan arah garis lurus dari Tangan ke Crosshair secara presisi
             const dir = crossGlobalPos.clone().sub(armGlobalPos).normalize();
 
-            // 4. Munculkan visual bola energi magis di sepanjang jalur aim
             const ball = new THREE.Mesh(new THREE.DodecahedronGeometry(0.12, 0), new THREE.MeshBasicMaterial({ color: 0x00ffff }));
             ball.position.copy(armGlobalPos); projectiles.push({ mesh: ball, dir: dir, speed: 0.7, isPlayer: true }); scene.add(ball);
             
-            state.cameraShake = 0.05;
-            handCores[0].scale.set(1.5, 1.5, 1.5);
+            state.cameraShake = 0.05; handCores[0].scale.set(1.5, 1.5, 1.5);
 
-            // PERBAIKAN UTAMA: Raycast ditembakkan dari tangan sejajar dengan arah bidikan crosshair dunia 3D
-            raycaster.set(armGlobalPos, dir);
-            const intersects = raycaster.intersectObject(enemyGroup, true);
-            let endPoint = armGlobalPos.clone().addScaledVector(dir, 20); // Default jarak jalur laser jika meleset
+            raycaster.set(armGlobalPos, dir); const intersects = raycaster.intersectObject(enemyGroup, true);
+            let endPoint = armGlobalPos.clone().addScaledVector(dir, 20); 
             
             if (intersects.length > 0) {
-                endPoint.copy(intersects[0].point); // Kunci ujung laser pas pada permukaan musuh yang tertabrak
-                
+                endPoint.copy(intersects[0].point); 
                 setTimeout(() => {
                     createExplosion(intersects[0].point, 0x00ffff);
-                    
-                    state.enemyHealth = Math.max(0, state.enemyHealth - 20);
-                    state.cameraShake = 0.2; 
-                    enemyGroup.position.z -= 0.8; // Efek knockback musuh
-                    updateUI();
+                    state.enemyHealth = Math.max(0, state.enemyHealth - 20); state.cameraShake = 0.2; enemyGroup.position.z -= 0.8; updateUI();
                     
                     if (state.enemyHealth <= 0) {
-                        createExplosion(enemyGroup.position, 0x9900ff, 150);
-                        state.score += 200;
-                        state.enemyHealth = 100;
-                        enemyGroup.position.z = -15; // Efek Respawn mundur ke belakang
-                        updateUI();
+                        createExplosion(enemyGroup.position, 0x9900ff, 150); state.score += 200; state.enemyHealth = 100;
+                        enemyGroup.position.z = -15; updateUI();
                     }
                 }, 150);
             }
 
-            // Membangun Silinder Jalur Laser Pembimbing Tembakan agar 100% lurus mengikuti aim
             const beamLength = armGlobalPos.distanceTo(endPoint);
             const beamMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 1, 6), new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.9 }));
-            beamMesh.scale.set(1, beamLength, 1);
-            beamMesh.position.copy(armGlobalPos).add(endPoint).multiplyScalar(0.5);
+            beamMesh.scale.set(1, beamLength, 1); beamMesh.position.copy(armGlobalPos).add(endPoint).multiplyScalar(0.5);
             beamMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-
             scene.add(beamMesh); spellBeams.push({ mesh: beamMesh, life: 1.0 });
         }
 
         function updateUI() {
-            DOM.hpText.innerText = state.health; DOM.manaText.innerText = state.mana; DOM.scoreText.innerText = state.score;
-            DOM.enemyHpText.innerText = state.enemyHealth;
-            DOM.hpFill.style.width = `${state.health}%`; DOM.manaFill.style.width = `${state.mana}%`;
-            DOM.enemyHpFill.style.width = `${state.enemyHealth}%`;
+            DOM.hpText.innerText = state.health; DOM.manaText.innerText = state.mana; DOM.scoreText.innerText = state.score; DOM.enemyHpText.innerText = state.enemyHealth;
+            DOM.hpFill.style.width = `${state.health}%`; DOM.manaFill.style.width = `${state.mana}%`; DOM.enemyHpFill.style.width = `${state.enemyHealth}%`;
         }
 
         function takeDamage(amt) {
-            state.health = Math.max(0, state.health - amt); updateUI();
-            state.cameraShake = 0.4; DOM.damageOverlay.style.opacity = 1;
+            state.health = Math.max(0, state.health - amt); updateUI(); state.cameraShake = 0.4; DOM.damageOverlay.style.opacity = 1;
             setTimeout(() => DOM.damageOverlay.style.opacity = 0, 300);
             if (state.health <= 0) {
                 state.isPlaying = false; DOM.overlay.style.display = 'flex';
@@ -315,23 +271,37 @@
             }
         }
 
-        // MEDIAPIPE GESTURE SYSTEM
+        // MEDIAPIPE SYSTEM & VISUAL TRACKING RENDER
         const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
         hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
 
         hands.onResults((results) => {
+            // ======== GAMBAR CAMERA & SKELETON KE CANVAS KECIL ========
+            trackingCtx.save();
+            trackingCtx.clearRect(0, 0, DOM.trackingCanvas.width, DOM.trackingCanvas.height);
+            // Gambar feed kamera video asli ke canvas 2D
+            trackingCtx.drawImage(results.image, 0, 0, DOM.trackingCanvas.width, DOM.trackingCanvas.height);
+            
+            if (results.multiHandLandmarks) {
+                for (const landmarks of results.multiHandLandmarks) {
+                    // Gambar garis dan titik landmark tangan dari Drawing Utils
+                    drawConnectors(trackingCtx, landmarks, HAND_CONNECTIONS, {color: '#00ffff', lineWidth: 3});
+                    drawLandmarks(trackingCtx, landmarks, {color: '#ff00ff', lineWidth: 1, radius: 3});
+                }
+            }
+            trackingCtx.restore();
+            // ==========================================================
+
             if (!state.isPlaying) return;
             state.shieldActive = false; state.isRecharging = false;
 
             const handCount = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
             if (handCount > 0) {
                 DOM.trackingStatus.innerText = `PELACAKAN AKTIF (${handCount} TANGAN)`;
-                DOM.trackingStatus.style.background = "rgba(0, 200, 100, 0.15)";
-                DOM.trackingStatus.style.color = "#006622"; DOM.trackingStatus.style.borderColor = "#00cc55";
+                DOM.trackingStatus.style.background = "rgba(0, 200, 100, 0.15)"; DOM.trackingStatus.style.color = "#006622"; DOM.trackingStatus.style.borderColor = "#00cc55";
             } else {
                 DOM.trackingStatus.innerText = "MENCARI TANGAN...";
-                DOM.trackingStatus.style.background = "rgba(255, 100, 100, 0.15)";
-                DOM.trackingStatus.style.color = "#cc0000"; DOM.trackingStatus.style.borderColor = "#ff4444";
+                DOM.trackingStatus.style.background = "rgba(255, 100, 100, 0.15)"; DOM.trackingStatus.style.color = "#cc0000"; DOM.trackingStatus.style.borderColor = "#ff4444";
             }
 
             if (results.multiHandLandmarks) {
@@ -341,10 +311,8 @@
 
                     const ndcX = -(landmarks[8].x * 2) + 1; const ndcY = -(landmarks[8].y * 2) + 1;
 
-                    const d8 = getDist(landmarks[8], landmarks[0]);
-                    const d12 = getDist(landmarks[12], landmarks[0]);
-                    const d16 = getDist(landmarks[16], landmarks[0]);
-                    const d20 = getDist(landmarks[20], landmarks[0]);
+                    const d8 = getDist(landmarks[8], landmarks[0]); const d12 = getDist(landmarks[12], landmarks[0]);
+                    const d16 = getDist(landmarks[16], landmarks[0]); const d20 = getDist(landmarks[20], landmarks[0]);
                     const avgDist = (d8 + d12 + d16 + d20) / 4;
 
                     if (isRightHand) {
@@ -352,14 +320,10 @@
                         state.smoothedHands.right.y = THREE.MathUtils.lerp(state.smoothedHands.right.y, ndcY, 0.3);
 
                         crosshair.position.x = state.smoothedHands.right.x * 1.5; crosshair.position.y = state.smoothedHands.right.y * 1.0;
-
                         armR.position.x = 0.4 + (state.smoothedHands.right.x * 0.15); armR.position.y = -0.4 + (state.smoothedHands.right.y * 0.1);
                         armR.rotation.y = state.smoothedHands.right.x * 0.3; armR.rotation.x = state.smoothedHands.right.y * -0.2;
 
-                        // Tangan Kanan Mengepal (Fist) -> Tembak Spell
-                        if (avgDist < 0.20) {
-                            shootFireball();
-                        }
+                        if (avgDist < 0.20) shootFireball(); // Kanan Mengepal -> Tembak
                     } else {
                         state.smoothedHands.left.x = THREE.MathUtils.lerp(state.smoothedHands.left.x, ndcX, 0.3);
                         state.smoothedHands.left.y = THREE.MathUtils.lerp(state.smoothedHands.left.y, ndcY, 0.3);
@@ -367,12 +331,8 @@
                         armL.position.x = -0.4 + (state.smoothedHands.left.x * 0.15); armL.position.y = -0.4 + (state.smoothedHands.left.y * 0.1);
                         armL.rotation.y = state.smoothedHands.left.x * 0.3; armL.rotation.x = state.smoothedHands.left.y * -0.2;
 
-                        // Kontrol Tangan Kiri (Terbuka -> Shield | Mengepal -> Isi Mana)
-                        if (avgDist > 0.36) {
-                            state.shieldActive = true;
-                        } else if (avgDist < 0.20) {
-                            state.isRecharging = true;
-                        }
+                        if (avgDist > 0.36) state.shieldActive = true;       // Kiri Terbuka -> Shield
+                        else if (avgDist < 0.20) state.isRecharging = true;  // Kiri Mengepal -> Mana
                     }
                 }
             }
@@ -381,7 +341,7 @@
         const mpCamera = new Camera(DOM.video, { onFrame: async () => { await hands.send({image: DOM.video}); }, width: 640, height: 480 });
 
         mpCamera.start().then(() => {
-            DOM.loadingText.innerText = "Sistem Kamera & Sinkronisasi Aim Siap!";
+            DOM.loadingText.innerText = "Sistem PiP Kamera & Animasi Game Siap!";
             DOM.loadingText.style.color = "#008800"; DOM.startBtn.disabled = false;
         });
 
@@ -396,20 +356,15 @@
             requestAnimationFrame(renderLoop);
             const now = performance.now();
 
-            // Memudarkan Jalur Laser Trail Raycast
             for (let i = spellBeams.length - 1; i >= 0; i--) {
                 const b = spellBeams[i]; b.life -= 0.15;
-                if (b.life <= 0) {
-                    scene.remove(b.mesh); b.mesh.geometry.dispose(); b.mesh.material.dispose(); spellBeams.splice(i, 1);
-                } else {
-                    b.mesh.material.opacity = b.life; b.mesh.scale.x = b.life; b.mesh.scale.z = b.life;
-                }
+                if (b.life <= 0) { scene.remove(b.mesh); b.mesh.geometry.dispose(); b.mesh.material.dispose(); spellBeams.splice(i, 1); } 
+                else { b.mesh.material.opacity = b.life; b.mesh.scale.x = b.life; b.mesh.scale.z = b.life; }
             }
 
             handMagicRings.forEach(ringObj => { ringObj.mesh.rotation.z += ringObj.speed; ringObj.mesh.rotation.y = Math.sin(now * 0.002) * 0.2; });
             handCores.forEach(core => { core.rotation.y += 0.05; core.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1); });
 
-            // Golem Musuh
             coreCrystal.rotation.y += 0.01; coreCrystal.position.y = Math.sin(now * 0.003) * 0.1;
             armorRings.rotation.y -= 0.02; armorRings.rotation.x = Math.sin(now * 0.001) * 0.2; 
             enemyGroup.position.z = THREE.MathUtils.lerp(enemyGroup.position.z, -10, 0.05);
@@ -418,19 +373,15 @@
             if (state.shieldActive) shield.rotation.y += 0.05;
             if (state.isRecharging && state.mana < 100) { state.mana = Math.min(100, state.mana + 0.8); updateUI(); }
 
-            // Serangan Balasan Musuh
             if (now - state.enemyLastAttack > 3000) {
                 state.enemyLastAttack = now;
                 const eBall = new THREE.Mesh(new THREE.DodecahedronGeometry(0.25, 0), new THREE.MeshStandardMaterial({color: 0x220033, emissive: 0x9900ff}));
-                eBall.position.copy(enemyGroup.position);
-                const targetPos = new THREE.Vector3().copy(camera.position); targetPos.y -= 0.2;
+                eBall.position.copy(enemyGroup.position); const targetPos = new THREE.Vector3().copy(camera.position); targetPos.y -= 0.2;
                 projectiles.push({ mesh: eBall, dir: targetPos.sub(enemyGroup.position).normalize(), speed: 0.18, isPlayer: false }); scene.add(eBall);
             }
 
-            // Pergerakan Proyektil & Partikel
             for (let i = projectiles.length - 1; i >= 0; i--) {
-                const p = projectiles[i]; p.mesh.position.addScaledVector(p.dir, p.speed);
-                p.mesh.rotation.x += 0.1; p.mesh.rotation.y += 0.1;
+                const p = projectiles[i]; p.mesh.position.addScaledVector(p.dir, p.speed); p.mesh.rotation.x += 0.1; p.mesh.rotation.y += 0.1;
 
                 if (!p.isPlayer && p.mesh.position.distanceTo(camera.position) < 2.5) {
                     scene.remove(p.mesh); projectiles.splice(i, 1);
@@ -449,11 +400,8 @@
                 p.mesh.geometry.attributes.position.needsUpdate = true; p.mesh.material.opacity = p.life;
             }
 
-            // Guncangan Kamera
-            if (state.cameraShake > 0) {
-                camera.position.x += (Math.random() - 0.5) * state.cameraShake; camera.position.y += (Math.random() - 0.5) * state.cameraShake;
-                state.cameraShake *= 0.9;
-            } else { camera.position.x = 0; camera.position.y = 1.6; }
+            if (state.cameraShake > 0) { camera.position.x += (Math.random() - 0.5) * state.cameraShake; camera.position.y += (Math.random() - 0.5) * state.cameraShake; state.cameraShake *= 0.9; } 
+            else { camera.position.x = 0; camera.position.y = 1.6; }
 
             renderer.render(scene, camera);
         }
