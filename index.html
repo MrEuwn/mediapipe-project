@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Arcane Light - Cattus Monster (Final Stable Edition)</title>
+    <title>Arcane Light - Production Edition</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
     
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
@@ -20,78 +22,94 @@
 
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
-        body { overflow: hidden; background-color: #f0f5ff; font-family: 'Segoe UI', Tahoma, sans-serif; color: #333; }
+        body { overflow: hidden; background-color: #050510; font-family: 'Rajdhani', sans-serif; color: #fff; }
         
         #game-canvas { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
 
+        /* UI LAYER - GLASSMORPHISM MODERN */
         #ui-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10;
-            pointer-events: none; padding: 25px;
-            color: #220044; text-shadow: 0 0 5px rgba(100, 0, 255, 0.2);
+            pointer-events: none; padding: 30px;
+            display: flex; flex-direction: column; justify-content: space-between;
         }
 
-        .hud-container { display: flex; justify-content: space-between; align-items: flex-start; width: 100%; }
-        
-        .status-box { 
-            width: 280px; background: rgba(255, 255, 255, 0.85); 
-            border: 2px solid #6600ff; border-radius: 12px; padding: 15px; 
-            box-shadow: 0 4px 20px rgba(102, 0, 255, 0.3); backdrop-filter: blur(8px);
+        .glass-panel {
+            background: rgba(10, 10, 25, 0.4);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(100, 200, 255, 0.15);
+            border-radius: 16px;
+            padding: 15px 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 0 15px rgba(0, 255, 255, 0.05);
         }
+
+        /* TATA LETAK ATAS */
+        .hud-top { display: flex; justify-content: space-between; align-items: flex-start; }
         
-        #enemy-hud { width: 340px; border-color: #cc0000; box-shadow: 0 4px 20px rgba(200, 0, 0, 0.2); }
+        /* TARGET HUD (Di Tengah Atas) */
+        #enemy-hud { width: 400px; margin: 0 auto; text-align: center; border-color: rgba(255, 50, 50, 0.3); }
+        #enemy-hud .bar-label { color: #ff5555; text-shadow: 0 0 8px rgba(255, 0, 0, 0.5); font-size: 18px; letter-spacing: 1px; }
+
+        /* SKOR (Di Kanan Atas) */
+        .score-box { font-size: 32px; font-weight: 700; color: #00ffff; text-shadow: 0 0 10px rgba(0, 255, 255, 0.6); text-align: center; min-width: 150px; }
+        .score-label { font-size: 14px; color: #88aaff; letter-spacing: 2px; margin-bottom: -5px; }
+
+        /* TATA LETAK BAWAH */
+        .hud-bottom { display: flex; justify-content: space-between; align-items: flex-end; }
+
+        /* PLAYER HUD (Di Kiri Bawah) */
+        .player-hud { width: 320px; }
         
-        .bar-label { font-weight: bold; font-size: 14px; margin-bottom: 3px; display: flex; justify-content: space-between;}
-        .bar-bg { width: 100%; height: 22px; background: #ddd; border-radius: 6px; margin-bottom: 12px; overflow: hidden; position: relative; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); }
-        .bar-bg:last-child { margin-bottom: 0; }
-        .bar-fill { height: 100%; transition: width 0.15s ease-out; box-shadow: inset 0 0 10px rgba(255,255,255,0.6); }
+        .bar-container { margin-bottom: 12px; }
+        .bar-container:last-child { margin-bottom: 0; }
+        .bar-label { font-weight: 700; font-size: 16px; margin-bottom: 6px; display: flex; justify-content: space-between; letter-spacing: 1px; }
         
-        #health-fill { background: linear-gradient(90deg, #ff3333, #ff6666); width: 100%; }
-        #mana-fill { background: linear-gradient(90deg, #00aaff, #66ccff); width: 100%; }
-        #enemy-health-fill { background: linear-gradient(90deg, #cc0000, #ff4444); width: 100%; }
+        /* Desain Bar yang Mulus */
+        .bar-bg { width: 100%; height: 18px; background: rgba(0,0,0,0.5); border-radius: 10px; overflow: hidden; position: relative; border: 1px solid rgba(255,255,255,0.1); }
+        .bar-fill { height: 100%; transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1); border-radius: 10px; }
+        
+        #health-fill { background: linear-gradient(90deg, #ff0055, #ff5588); box-shadow: 0 0 10px rgba(255, 0, 85, 0.5); width: 100%; }
+        #mana-fill { background: linear-gradient(90deg, #0088ff, #00ffff); box-shadow: 0 0 10px rgba(0, 136, 255, 0.5); width: 100%; }
+        #enemy-health-fill { background: linear-gradient(90deg, #880000, #ff2222); box-shadow: 0 0 10px rgba(255, 0, 0, 0.5); width: 100%; }
         
         #tracking-status {
-            margin-top: 10px; padding: 6px; text-align: center; font-size: 12px; font-weight: bold;
-            border-radius: 6px; border: 1px solid #ff4444; background: rgba(255, 100, 100, 0.15);
-            color: #cc0000; transition: all 0.3s ease; letter-spacing: 0.5px;
+            margin-top: 15px; padding: 8px; text-align: center; font-size: 13px; font-weight: 700;
+            border-radius: 8px; transition: all 0.3s ease; letter-spacing: 1px;
         }
 
-        .score-text { font-size: 32px; font-weight: bold; color: #4400aa; text-shadow: 0 2px 5px rgba(100, 0, 255, 0.3); background: rgba(255,255,255,0.7); padding: 8px 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(102,0,255,0.2); }
-
-        /* PREVIEW KAMERA (PiP) */
+        /* KAMERA PREVIEW (Di Kanan Bawah) */
         #camera-preview {
-            position: absolute; bottom: 25px; right: 25px;
-            width: 240px; height: 180px;
-            border: 3px solid #6600ff; border-radius: 12px;
-            box-shadow: 0 5px 25px rgba(102, 0, 255, 0.5);
-            overflow: hidden; z-index: 15;
-            transform: scaleX(-1); /* Efek Cermin agar arah gerakan tangan natural */
+            width: 220px; height: 165px;
+            border-radius: 16px; border: 2px solid rgba(0, 255, 255, 0.3);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 255, 255, 0.15);
+            overflow: hidden; transform: scaleX(-1); position: relative; z-index: 15;
             background: #000;
         }
-        #tracking-canvas, #webcam {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;
-        }
+        #tracking-canvas, #webcam { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
         #webcam { display: none; }
         
-        #overlay-screen {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 20;
-            background: radial-gradient(circle, rgba(245, 248, 255, 0.95) 0%, rgba(200, 215, 255, 0.98) 100%);
-            display: flex; flex-direction: column; justify-content: center; align-items: center; color: #333; text-align: center;
+        /* PETUNJUK KONTROL (Tengah Bawah) */
+        .controls-hint {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            font-size: 15px; font-weight: 500; color: rgba(255,255,255,0.7); text-align: center;
+            background: rgba(0,0,0,0.5); padding: 8px 20px; border-radius: 20px; backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.05);
         }
-        #overlay-screen h1 { font-size: 64px; margin-bottom: 15px; color: #5500dd; text-shadow: 0 4px 15px rgba(85, 0, 221, 0.4); letter-spacing: 2px; }
-        #loading-text { font-size: 18px; color: #555; margin-bottom: 30px; font-weight: bold; }
-        
-        #start-btn {
-            padding: 18px 50px; font-size: 22px; font-weight: bold; color: #fff; background: linear-gradient(45deg, #6600ff, #00ccff);
-            border: none; border-radius: 30px; cursor: pointer; box-shadow: 0 8px 25px rgba(102, 0, 255, 0.5); pointer-events: auto;
-            transition: all 0.3s ease; text-transform: uppercase; letter-spacing: 1px;
-        }
-        #start-btn:hover { transform: scale(1.05) translateY(-3px); box-shadow: 0 12px 30px rgba(102, 0, 255, 0.6); }
-        #start-btn:disabled { background: #aaa; box-shadow: none; cursor: not-allowed; transform: none; }
 
+        /* LOADING TOAST */
+        #loading-toast {
+            position: absolute; top: 120px; left: 50%; transform: translateX(-50%);
+            background: linear-gradient(135deg, rgba(100, 0, 255, 0.8), rgba(0, 200, 255, 0.8));
+            padding: 12px 30px; border-radius: 30px; font-weight: 700; font-size: 16px;
+            letter-spacing: 1px; box-shadow: 0 5px 20px rgba(0, 255, 255, 0.4);
+            border: 1px solid rgba(255,255,255,0.4); z-index: 100; transition: opacity 0.5s ease;
+        }
+
+        /* EFEK KENA DAMAGE */
         #damage-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5;
-            background: radial-gradient(circle, rgba(255,0,0,0) 30%, rgba(255,0,0,0.7) 100%);
-            opacity: 0; transition: opacity 0.2s; pointer-events: none;
+            background: radial-gradient(circle, rgba(255,0,0,0) 40%, rgba(255,0,0,0.4) 100%);
+            opacity: 0; transition: opacity 0.2s ease-out; pointer-events: none;
         }
     </style>
 </head>
@@ -99,55 +117,63 @@
 
     <canvas id="game-canvas"></canvas>
     <div id="damage-overlay"></div>
+    
+    <div id="loading-toast">🪄 MENGHUBUNGKAN SIHIR KAMERA & MONSTER...</div>
 
     <div id="ui-layer">
-        <div class="hud-container">
-            <div class="status-box">
-                <div class="bar-label"><span>HEALTH</span> <span><span id="hp-text">100</span>/100</span></div>
-                <div class="bar-bg"><div id="health-fill" class="bar-fill"></div></div>
-                <div class="bar-label"><span>MANA</span> <span><span id="mana-text">100</span>/100</span></div>
-                <div class="bar-bg"><div id="mana-fill" class="bar-fill"></div></div>
-                <div id="tracking-status">MENCARI TANGAN...</div>
-            </div>
+        <div class="hud-top">
+            <div style="width: 150px;"></div> 
             
-            <div id="enemy-hud" class="status-box">
-                <div class="bar-label" style="color: #bb0000;"><span>TARGET: CATTUS MONSTER</span> <span><span id="enemy-hp-text">100</span>/100</span></div>
-                <div class="bar-bg" style="margin-bottom: 0;"><div id="enemy-health-fill" class="bar-fill"></div></div>
+            <div id="enemy-hud" class="glass-panel">
+                <div class="bar-container">
+                    <div class="bar-label"><span>TARGET: CATTUS</span> <span><span id="enemy-hp-text">100</span>%</span></div>
+                    <div class="bar-bg"><div id="enemy-health-fill" class="bar-fill"></div></div>
+                </div>
             </div>
 
-            <div class="score-text">SCORE: <span id="score-text">0</span></div>
+            <div class="glass-panel score-box">
+                <div class="score-label">SKOR</div>
+                <div id="score-text">0</div>
+            </div>
+        </div>
+
+        <div class="controls-hint">
+            KIRI: Arahkan & Kepal (Tembak) &nbsp;|&nbsp; KANAN: Terbuka (Perisai), Kepal (Isi Mana)
         </div>
         
-        <div style="position: absolute; bottom: 25px; width: 100%; text-align: center; font-size: 16px; font-weight: 600; color: #330088; background: rgba(255,255,255,0.6); padding: 10px 0; left: 0;">
-            Kiri: Arahkan & Mengepal (Tembak) | Kanan: Terbuka (Perisai) & Mengepal (Isi Mana)
+        <div class="hud-bottom">
+            <div class="glass-panel player-hud">
+                <div class="bar-container">
+                    <div class="bar-label"><span style="color:#ff88aa">HEALTH</span> <span><span id="hp-text">100</span></span></div>
+                    <div class="bar-bg"><div id="health-fill" class="bar-fill"></div></div>
+                </div>
+                <div class="bar-container">
+                    <div class="bar-label"><span style="color:#88ccff">MANA</span> <span><span id="mana-text">100</span></span></div>
+                    <div class="bar-bg"><div id="mana-fill" class="bar-fill"></div></div>
+                </div>
+                <div id="tracking-status" style="background: rgba(255, 100, 100, 0.15); color: #ff5555; border: 1px solid #ff5555;">
+                    MENCARI TANGAN...
+                </div>
+            </div>
+
+            <div id="camera-preview">
+                <video id="webcam" autoplay playsinline muted></video>
+                <canvas id="tracking-canvas" width="640" height="480"></canvas>
+            </div>
         </div>
     </div>
 
-    <div id="camera-preview">
-        <video id="webcam" autoplay playsinline muted width="640" height="480"></video>
-        <canvas id="tracking-canvas" width="640" height="480"></canvas>
-    </div>
-
-    <div id="overlay-screen">
-        <h1>ARCANE LIGHT</h1>
-        <p id="loading-text">Membangkitkan Sihir Kamera...</p>
-        <button id="start-btn" disabled>START GAME</button>
-    </div>
-
-    <!-- (Autoload active) model loader UI removed - file loads automatically from project root -->
-
     <script type="module">
-        // Import Three.js dari Import Map
         import * as THREE from 'three';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-        import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
-        import { TDSLoader } from 'three/addons/loaders/TDSLoader.js';
 
+        // STATE MANAGER
         const state = {
             isPlaying: false, health: 100, mana: 100, score: 0, enemyHealth: 100,
             lastFireTime: 0, isRecharging: false, shieldActive: false, leftHandTracked: false,
             enemyLastAttack: 0, cameraShake: 0,
-            smoothedHands: { right: new THREE.Vector3(), left: new THREE.Vector3() }
+            smoothedHands: { right: new THREE.Vector3(), left: new THREE.Vector3() },
+            isModelLoaded: false, isCameraLoaded: false
         };
 
         const DOM = {
@@ -156,50 +182,59 @@
             hpFill: document.getElementById('health-fill'), manaFill: document.getElementById('mana-fill'),
             enemyHpFill: document.getElementById('enemy-health-fill'), enemyHpText: document.getElementById('enemy-hp-text'),
             scoreText: document.getElementById('score-text'), hpText: document.getElementById('hp-text'),
-            manaText: document.getElementById('mana-text'), overlay: document.getElementById('overlay-screen'),
-            startBtn: document.getElementById('start-btn'), loadingText: document.getElementById('loading-text'),
-            damageOverlay: document.getElementById('damage-overlay'), trackingStatus: document.getElementById('tracking-status')
+            manaText: document.getElementById('mana-text'), damageOverlay: document.getElementById('damage-overlay'), 
+            trackingStatus: document.getElementById('tracking-status'), loadingToast: document.getElementById('loading-toast')
         };
         const trackingCtx = DOM.trackingCanvas.getContext('2d');
 
         // SETUP THREE.JS SCENE
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xddeeff); scene.fog = new THREE.Fog(0xddeeff, 5, 30);
-        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000); camera.position.set(0, 1.6, 0); scene.add(camera);
+        scene.background = new THREE.Color(0x050510); 
+        scene.fog = new THREE.FogExp2(0x050510, 0.04);
+        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000); 
+        camera.position.set(0, 1.6, 0); scene.add(camera);
 
-        const renderer = new THREE.WebGLRenderer({ canvas: DOM.gameCanvas, antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight); renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        const renderer = new THREE.WebGLRenderer({ canvas: DOM.gameCanvas, antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight); 
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-        // LIGHTING (Pencahayaan untuk model 3D)
-        scene.add(new THREE.AmbientLight(0xffffff, 1.5));
-        const sunLight = new THREE.DirectionalLight(0xfffaee, 2.5); sunLight.position.set(10, 20, 10); sunLight.castShadow = true; scene.add(sunLight);
+        // LIGHTING
+        scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+        const dirLight = new THREE.DirectionalLight(0x88aaff, 3.0); 
+        dirLight.position.set(10, 20, 10); 
+        dirLight.castShadow = true; 
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
+        scene.add(dirLight);
         
-        const gridHelper = new THREE.GridHelper(100, 100, 0x88bbff, 0xffffff); gridHelper.position.y = 0.01; scene.add(gridHelper);
-        const ground = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: 0xcce0ff, roughness: 0.9 }));
+        // GROUND
+        const gridHelper = new THREE.GridHelper(100, 100, 0x00ffff, 0x222244); gridHelper.position.y = 0.01; scene.add(gridHelper);
+        const ground = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: 0x050510, roughness: 0.8 }));
         ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
 
-        // PLAYER HANDS SYSTEM (FPS ARMS)
+        // PRE-DEFINE GEOMETRY & MATERIALS FOR FPS OPTIMIZATION
+        const bulletGeo = new THREE.DodecahedronGeometry(0.12, 0);
+        const bulletMat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+        const enemyBulletGeo = new THREE.DodecahedronGeometry(0.25, 0);
+        const enemyBulletMat = new THREE.MeshStandardMaterial({color: 0x220033, emissive: 0x9900ff});
+        const beamGeo = new THREE.CylinderGeometry(0.015, 0.015, 1, 6);
+        const beamMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.9 });
+
+        // PLAYER ARMS
         const fpsArmsGroup = new THREE.Group(); camera.add(fpsArmsGroup);
         const handMagicRings = []; const handCores = []; const spellBeams = [];
         let coreL;
 
         function createAdvancedArm(isRight) {
             const armGroup = new THREE.Group();
-            const armorMat = new THREE.MeshStandardMaterial({ color: 0xaa8822, metalness: 0.8, roughness: 0.3 });
-            const darkClothMat = new THREE.MeshStandardMaterial({ color: 0x221144, roughness: 0.9 });
+            const armorMat = new THREE.MeshStandardMaterial({ color: 0x333344, metalness: 0.9, roughness: 0.2 });
             const coreMat = new THREE.MeshStandardMaterial({ color: isRight ? 0xffbb00 : 0x00ffff, emissive: isRight ? 0xff5500 : 0x00aaff, emissiveIntensity: 2 });
             
-            const sleeveGeo = new THREE.CylinderGeometry(0.06, 0.09, 0.5, 16);
-            const sleeve = new THREE.Mesh(sleeveGeo, darkClothMat); sleeve.position.set(0, 0, -0.2); sleeve.rotation.x = Math.PI / 2; armGroup.add(sleeve);
-            const bracerGeo = new THREE.CylinderGeometry(0.08, 0.11, 0.35, 8);
-            const bracer = new THREE.Mesh(bracerGeo, armorMat); bracer.position.set(0, 0, -0.25); bracer.rotation.x = Math.PI / 2; armGroup.add(bracer);
-            const palmGeo = new THREE.BoxGeometry(0.12, 0.05, 0.14);
-            const palm = new THREE.Mesh(palmGeo, armorMat); palm.position.set(0, 0, -0.5); armGroup.add(palm);
-
+            const bracer = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.11, 0.35, 8), armorMat); bracer.position.set(0, 0, -0.25); bracer.rotation.x = Math.PI / 2; armGroup.add(bracer);
+            const palm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.05, 0.14), armorMat); palm.position.set(0, 0, -0.5); armGroup.add(palm);
             const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.04, 0), coreMat); core.position.set(0, 0.03, -0.5); armGroup.add(core); 
-            handCores.push(core);
-            if (!isRight) coreL = core;
+            handCores.push(core); if (!isRight) coreL = core;
 
             const magicRing = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.005, 8, 32), new THREE.MeshBasicMaterial({ color: isRight ? 0xffa500 : 0x00ffff, transparent: true, opacity: 0.7, side: THREE.DoubleSide }));
             magicRing.position.set(0, 0, -0.4); armGroup.add(magicRing); handMagicRings.push({ mesh: magicRing, speed: isRight ? 0.05 : -0.05 });
@@ -209,325 +244,108 @@
 
         const armR = createAdvancedArm(true); const armL = createAdvancedArm(false); fpsArmsGroup.add(armR, armL);
 
-        // ENEMY CONTAINER (Wadah untuk Monster .glb)
-        const enemyGroup = new THREE.Group(); 
-        enemyGroup.position.set(0, 0, -10); 
-        scene.add(enemyGroup);
+        // ENEMY & GLTF LOADER (SUDAH DIPERBARUI UNTUK GITHUB PAGES ✔️)
+        const enemyGroup = new THREE.Group(); enemyGroup.position.set(0, 0, -10); scene.add(enemyGroup);
+        let monsterModel = null; let mixer = null; const clock = new THREE.Clock();
 
-        // LOAD FILE .GLB MONSTER CATTUS FORTNITE
-        const gltfLoader = new GLTFLoader();
-        const objLoader = new OBJLoader();
-        const tdsLoader = new TDSLoader();
-        let monsterModel = null;
-        let mixer = null;
-        const clock = new THREE.Clock();
-        let enemyCollisionCenter = new THREE.Vector3();
-        let enemyCollisionRadius = 1;
-        let enemyTargetZ = -10;
-        let modelHeightOffset = 1.4;
-
-        // Default attempt to load a bundled file (if you placed it in project root)
-        // Try to load directly; errors will be shown in console and loading text.
-        function tryLoadDefaultModel() {
-            const defaultPath = 'cattus_monster_fortnite.glb';
-            DOM.loadingText.innerText = `Mencoba memuat default: ${defaultPath} ...`;
-            try {
-                loadGLBFromURL(defaultPath);
-            } catch (e) {
-                console.warn('Autoload failed', e);
-                DOM.loadingText.innerText += " (Tidak menemukan default — gunakan tombol 'Load Model'.)";
+        new GLTFLoader().load('./cattus_monster_fortnite.glb', (gltf) => {
+            monsterModel = gltf.scene;
+            monsterModel.scale.set(0.015, 0.015, 0.015); 
+            monsterModel.position.set(0, -0.2, 0); 
+            monsterModel.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
+            enemyGroup.add(monsterModel);
+            if (gltf.animations && gltf.animations.length > 0) {
+                mixer = new THREE.AnimationMixer(monsterModel);
+                mixer.clipAction(gltf.animations[0]).play();
             }
-        }
+            state.isModelLoaded = true; checkAutoStart();
+        }, undefined, (e) => console.error("Gagal memuat model .GLB:", e));
 
-        // Helper: bersihkan model yang ada
-        function disposeCurrentModel() {
-            if (!monsterModel) return;
-            enemyGroup.remove(monsterModel);
-            monsterModel.traverse((c) => {
-                if (c.isMesh) {
-                    c.geometry && c.geometry.dispose();
-                    if (Array.isArray(c.material)) c.material.forEach(m => m.dispose && m.dispose());
-                    else c.material && c.material.dispose && c.material.dispose();
-                }
-            });
-            monsterModel = null; mixer = null;
-        }
-
-        function loadGLBFromURL(url) {
-            DOM.loadingText.innerText = 'Memuat model...';
-            gltfLoader.load(url, (gltf) => {
-                disposeCurrentModel();
-                monsterModel = gltf.scene;
-                monsterModel.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
-                enemyGroup.add(monsterModel);
-                fitAndCenterModel(monsterModel, 6);
-                // compute collision bounds for projectiles
-                (function(){
-                    try {
-                        monsterModel.updateMatrixWorld(true);
-                        const b = new THREE.Box3().setFromObject(monsterModel);
-                        const s = new THREE.Vector3(); b.getSize(s);
-                        b.getCenter(enemyCollisionCenter);
-                        enemyCollisionRadius = Math.max(s.x, s.y, s.z) * 0.5;
-                    } catch(e) { console.warn('compute collision bounds failed', e); }
-                })();
-                if (gltf.animations && gltf.animations.length > 0) { mixer = new THREE.AnimationMixer(monsterModel); mixer.clipAction(gltf.animations[0]).play(); }
-                DOM.loadingText.innerText = 'Model dimuat (dari URL).';
-            }, (xhr) => {
-                if (xhr.total) console.log(Math.round((xhr.loaded / xhr.total * 100)) + '% model termuat');
-            }, (err) => {
-                console.error('Gagal memuat model dari URL', err); DOM.loadingText.innerText = 'Gagal memuat model dari URL.';
-            });
-        }
-
-        async function loadModelFromFile(file) {
-            const name = file.name.toLowerCase();
-            DOM.loadingText.innerText = `Memuat ${file.name} ...`;
-            try {
-                if (name.endsWith('.glb') || name.endsWith('.gltf')) {
-                    const arrayBuffer = await file.arrayBuffer();
-                    gltfLoader.parse(arrayBuffer, '', (gltf) => {
-                        disposeCurrentModel();
-                        monsterModel = gltf.scene;
-                        monsterModel.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
-                        enemyGroup.add(monsterModel);
-                        fitAndCenterModel(monsterModel, 6);
-                        // compute collision bounds for projectiles
-                        (function(){
-                            try {
-                                monsterModel.updateMatrixWorld(true);
-                                const b = new THREE.Box3().setFromObject(monsterModel);
-                                const s = new THREE.Vector3(); b.getSize(s);
-                                b.getCenter(enemyCollisionCenter);
-                                enemyCollisionRadius = Math.max(s.x, s.y, s.z) * 0.5;
-                            } catch(e) { console.warn('compute collision bounds failed', e); }
-                        })();
-                        if (gltf.animations && gltf.animations.length > 0) { mixer = new THREE.AnimationMixer(monsterModel); mixer.clipAction(gltf.animations[0]).play(); }
-                        DOM.loadingText.innerText = `${file.name} berhasil dimuat.`;
-                    }, (err) => {
-                        console.error('GLTF parse error', err); DOM.loadingText.innerText = 'Gagal parse .glb/.gltf.';
-                    });
-                } else if (name.endsWith('.obj')) {
-                    const text = await file.text();
-                    const obj = objLoader.parse(text);
-                    disposeCurrentModel();
-                    monsterModel = obj;
-                    monsterModel.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
-                    enemyGroup.add(monsterModel);
-                    fitAndCenterModel(monsterModel, 6);
-                    // compute collision bounds for projectiles
-                    (function(){
-                        try {
-                            monsterModel.updateMatrixWorld(true);
-                            const b = new THREE.Box3().setFromObject(monsterModel);
-                            const s = new THREE.Vector3(); b.getSize(s);
-                            b.getCenter(enemyCollisionCenter);
-                            enemyCollisionRadius = Math.max(s.x, s.y, s.z) * 0.5;
-                        } catch(e) { console.warn('compute collision bounds failed', e); }
-                    })();
-                    DOM.loadingText.innerText = `${file.name} (OBJ) berhasil dimuat.`;
-                } else if (name.endsWith('.3ds')) {
-                    const arrayBuffer = await file.arrayBuffer();
-                    tdsLoader.parse(arrayBuffer, (object) => {
-                        disposeCurrentModel();
-                        monsterModel = object;
-                        monsterModel.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
-                        enemyGroup.add(monsterModel);
-                        fitAndCenterModel(monsterModel, 6);
-                        // compute collision bounds for projectiles
-                        (function(){
-                            try {
-                                monsterModel.updateMatrixWorld(true);
-                                const b = new THREE.Box3().setFromObject(monsterModel);
-                                const s = new THREE.Vector3(); b.getSize(s);
-                                b.getCenter(enemyCollisionCenter);
-                                enemyCollisionRadius = Math.max(s.x, s.y, s.z) * 0.5;
-                            } catch(e) { console.warn('compute collision bounds failed', e); }
-                        })();
-                        DOM.loadingText.innerText = `${file.name} (3DS) berhasil dimuat.`;
-                    });
-                } else {
-                    DOM.loadingText.innerText = 'Tipe file tidak didukung. Gunakan .glb/.gltf/.obj/.3ds';
-                }
-            } catch (e) {
-                console.error('Gagal memuat file lokal', e); DOM.loadingText.innerText = 'Gagal memuat file lokal.';
-            }
-        }
-
-        // Drag & drop + input file handling
-        // model input and frame button removed (autoload active)
-
-        function setupDragAndDrop() {
-            const canvas = DOM.gameCanvas;
-            ['dragenter','dragover'].forEach(evt => {
-                canvas.addEventListener(evt, (e) => { e.preventDefault(); canvas.style.outline = '3px dashed rgba(102,0,255,0.6)'; });
-            });
-            ['dragleave','drop'].forEach(evt => {
-                canvas.addEventListener(evt, (e) => { e.preventDefault(); canvas.style.outline = 'none'; });
-            });
-            canvas.addEventListener('drop', (e) => {
-                if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
-                    loadModelFromFile(e.dataTransfer.files[0]);
-                }
-            });
-        }
-
-        // drag & drop not required (autoload) - do not call setupDragAndDrop()
-        tryLoadDefaultModel();
-
-        // Auto-fit & center model so it is visible in scene regardless of source scale
-        function fitAndCenterModel(obj, desiredSize = 1.6) {
-            try {
-                obj.updateMatrixWorld(true);
-                const box = new THREE.Box3().setFromObject(obj);
-                const size = new THREE.Vector3(); box.getSize(size);
-                if (size.x === 0 && size.y === 0 && size.z === 0) return;
-                obj.scale.set(1,1,1);
-                const maxDim = Math.max(size.x, size.y, size.z);
-                const scale = desiredSize / maxDim;
-                obj.scale.multiplyScalar(scale);
-                obj.updateMatrixWorld(true);
-
-                // Recompute box after scaling
-                const box2 = new THREE.Box3().setFromObject(obj);
-                const center = new THREE.Vector3(); box2.getCenter(center);
-                // Shift object so center aligns with group's origin
-                obj.position.sub(center);
-                // Raise model so it sits above ground - use a larger offset so big models aren't under the grid
-                const yOffset = Math.abs(box2.min.y) + Math.max(0.5, desiredSize * 0.15);
-                obj.position.y += yOffset + modelHeightOffset;
-
-                // Move enemyGroup closer so model appears larger in view
-                if (typeof enemyGroup !== 'undefined') {
-                    enemyGroup.position.z = -Math.max(4, desiredSize * 1.6);
-                    // keep a stable target z so render loop doesn't override unexpectedly
-                    enemyTargetZ = enemyGroup.position.z;
-                }
-            } catch (e) {
-                console.warn('fitAndCenterModel failed', e);
-            }
-        }
-
-        // Frame model: position camera to frame the provided object and briefly show its bounding box
-        function frameModel(obj) {
-            try {
-                obj.updateMatrixWorld(true);
-                const box = new THREE.Box3().setFromObject(obj);
-                const size = new THREE.Vector3(); box.getSize(size);
-                const center = new THREE.Vector3(); box.getCenter(center);
-                const maxDim = Math.max(size.x, size.y, size.z);
-                if (maxDim === 0) return;
-
-                // Position camera behind and above the model so it's visible
-                const distance = Math.max(1.5, maxDim * 1.8);
-                camera.position.set(center.x, center.y + maxDim * 0.6, center.z + distance);
-                camera.lookAt(center);
-                camera.updateProjectionMatrix();
-
-                // Add a visible box helper for a short time
-                const boxHelper = new THREE.Box3Helper(box, 0xff6600);
-                scene.add(boxHelper);
-                setTimeout(() => { scene.remove(boxHelper); }, 3500);
-                console.log('Framed model. Center:', center, 'size:', size);
-            } catch (e) {
-                console.warn('frameModel failed', e);
-            }
-        }
-
-        // CROSSHAIR & SHIELD
-        const crosshair = new THREE.Mesh(new THREE.RingGeometry(0.04, 0.06, 32), new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.6 })); crosshair.position.z = -1.5; camera.add(crosshair); 
-        const shield = new THREE.Mesh(new THREE.IcosahedronGeometry(2, 1), new THREE.MeshBasicMaterial({ color: 0x00ccff, wireframe: true, transparent: true, opacity: 0.2 })); shield.position.set(0.4, 0, -2); shield.visible = false; camera.add(shield);
+        // CROSSHAIR, SHIELD & TRAJECTORY
+        const crosshair = new THREE.Mesh(new THREE.RingGeometry(0.02, 0.03, 32), new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.8 })); crosshair.position.z = -1.5; camera.add(crosshair); 
+        const shield = new THREE.Mesh(new THREE.IcosahedronGeometry(2, 1), new THREE.MeshBasicMaterial({ color: 0x00ccff, wireframe: true, transparent: true, opacity: 0.15 })); shield.position.set(0.4, 0, -2); shield.visible = false; camera.add(shield);
 
         const projectiles = []; const particles = []; const raycaster = new THREE.Raycaster();
+        const trajectoryPoints = Array.from({length: 20}, () => {
+            const dot = new THREE.Mesh(new THREE.SphereGeometry(0.015, 4, 4), new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.5 }));
+            dot.visible = false; scene.add(dot); return dot;
+        });
 
-        // SYSTEM TRAJECTORY POINTER (Garis Bidik)
-        const trajectoryPoints = [];
-        for (let i = 0; i < 25; i++) {
-            const dot = new THREE.Mesh(new THREE.SphereGeometry(0.018, 4, 4), new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.5 }));
-            dot.visible = false; scene.add(dot); trajectoryPoints.push(dot);
+        // AUTOMATIC GAME START 
+        function checkAutoStart() {
+            if (state.isModelLoaded && state.isCameraLoaded && !state.isPlaying) {
+                DOM.loadingToast.style.opacity = '0';
+                setTimeout(() => DOM.loadingToast.style.display = 'none', 500);
+                state.isPlaying = true;
+                state.enemyLastAttack = performance.now() + 2500;
+                renderLoop();
+            }
         }
 
-        function createExplosion(pos, color, particleCount = 50) {
-            const geo = new THREE.BufferGeometry(); const posArr = new Float32Array(particleCount * 3); const velArr = [];
-            for(let i=0; i<particleCount; i++) {
-                posArr[i*3] = pos.x; posArr[i*3+1] = pos.y; posArr[i*3+2] = pos.z; velArr.push((Math.random() - 0.5)*0.4, (Math.random() - 0.5)*0.4, (Math.random() - 0.5)*0.4);
+        // OPTIMIZED PARTICLE EXPLOSION
+        function createExplosion(pos, color, pCount = 40) {
+            const geo = new THREE.BufferGeometry(); const posArr = new Float32Array(pCount * 3); const velArr = [];
+            for(let i=0; i<pCount; i++) {
+                posArr[i*3] = pos.x; posArr[i*3+1] = pos.y; posArr[i*3+2] = pos.z; 
+                velArr.push((Math.random() - 0.5)*0.5, (Math.random() - 0.5)*0.5, (Math.random() - 0.5)*0.5);
             }
-            geo.setAttribute('position', new THREE.BufferAttribute(posArr, 3)); const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.15, color: color, blending: THREE.AdditiveBlending }));
+            geo.setAttribute('position', new THREE.BufferAttribute(posArr, 3)); 
+            const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.15, color: color, blending: THREE.AdditiveBlending }));
             scene.add(pts); particles.push({ mesh: pts, vel: velArr, life: 1.0 });
         }
 
-        // TRUE AIMING SYSTEM (Memindai Titik yang Ditunjuk Crosshair Tengah Layar)
         function getCrosshairWorldTarget() {
             const camGlobalPos = new THREE.Vector3(); camera.getWorldPosition(camGlobalPos);
             const crossGlobalPos = new THREE.Vector3(); crosshair.getWorldPosition(crossGlobalPos);
-            
-            const shootDir = crossGlobalPos.clone().sub(camGlobalPos).normalize();
-            
+            const shootDir = crossGlobalPos.sub(camGlobalPos).normalize();
             raycaster.set(camGlobalPos, shootDir);
             const intersects = raycaster.intersectObject(enemyGroup, true);
-            
-            if (intersects.length > 0) {
-                return { point: intersects[0].point, isHit: true };
-            } else {
-                return { point: camGlobalPos.clone().addScaledVector(shootDir, 20), isHit: false };
-            }
+            return intersects.length > 0 ? { point: intersects[0].point, isHit: true } : { point: camGlobalPos.addScaledVector(shootDir, 25), isHit: false };
         }
 
-        // UPDATE TRAJECTORY LINE
         function updateTrajectoryLine() {
-            if (!state.isPlaying || !state.leftHandTracked) {
-                trajectoryPoints.forEach(d => d.visible = false); return;
-            }
+            if (!state.isPlaying || !state.leftHandTracked) { trajectoryPoints.forEach(d => d.visible = false); return; }
             const targetData = getCrosshairWorldTarget();
-            
             const armGlobalPos = new THREE.Vector3(); armL.getWorldPosition(armGlobalPos); armGlobalPos.y += 0.03;
             const bulletDir = targetData.point.clone().sub(armGlobalPos).normalize();
-            const distToTarget = armGlobalPos.distanceTo(targetData.point);
+            const dist = armGlobalPos.distanceTo(targetData.point);
+            const step = dist / trajectoryPoints.length;
 
-            const step = distToTarget / trajectoryPoints.length;
-            trajectoryPoints.forEach((dot, index) => {
-                const currentDist = step * (index + 1);
-                if (currentDist <= distToTarget) {
-                    dot.position.copy(armGlobalPos).addScaledVector(bulletDir, currentDist); dot.visible = true;
-                    dot.material.opacity = 0.2 + Math.sin(performance.now() * 0.01 + index) * 0.2;
-                } else {
-                    dot.visible = false;
-                }
+            trajectoryPoints.forEach((dot, i) => {
+                const cDist = step * (i + 1);
+                if (cDist <= dist) {
+                    dot.position.copy(armGlobalPos).addScaledVector(bulletDir, cDist); dot.visible = true;
+                    dot.material.opacity = 0.1 + Math.sin(performance.now() * 0.01 + i) * 0.3;
+                } else dot.visible = false;
             });
         }
 
-        // SHOOT FIREBALL DARI TANGAN KIRI MENUJU TARGET
         function shootFireball() {
-            if (state.mana < 10 || performance.now() - state.lastFireTime < 400) return;
+            if (state.mana < 10 || performance.now() - state.lastFireTime < 350) return;
             state.mana -= 10; updateUI(); state.lastFireTime = performance.now();
 
             const targetData = getCrosshairWorldTarget();
             const armGlobalPos = new THREE.Vector3(); armL.getWorldPosition(armGlobalPos); armGlobalPos.y += 0.03;
-            
             const bulletDir = targetData.point.clone().sub(armGlobalPos).normalize();
 
-            const ball = new THREE.Mesh(new THREE.DodecahedronGeometry(0.12, 0), new THREE.MeshBasicMaterial({ color: 0x00ffff }));
-            ball.position.copy(armGlobalPos);
-            // mark projectile with whether the initial raycast already counted it as a hit
-            projectiles.push({ mesh: ball, dir: bulletDir, speed: 0.7, isPlayer: true, targetWasHit: targetData.isHit });
-            scene.add(ball);
+            const ball = new THREE.Mesh(bulletGeo, bulletMat);
+            ball.position.copy(armGlobalPos); projectiles.push({ mesh: ball, dir: bulletDir, speed: 0.8, isPlayer: true }); scene.add(ball);
             
             state.cameraShake = 0.05; if(coreL) coreL.scale.set(1.8, 1.8, 1.8);
 
             if (targetData.isHit) {
                 setTimeout(() => {
                     createExplosion(targetData.point, 0x00ffff);
-                    state.enemyHealth = Math.max(0, state.enemyHealth - 10); state.cameraShake = 0.2; enemyGroup.position.z -= 0.4; updateUI();
-                    
+                    state.enemyHealth = Math.max(0, state.enemyHealth - 10); state.cameraShake = 0.2; enemyGroup.position.z -= 0.3; updateUI();
                     if (state.enemyHealth <= 0) {
-                        createExplosion(enemyGroup.position, 0x9900ff, 150); state.score += 200; state.enemyHealth = 100;
+                        createExplosion(enemyGroup.position, 0x9900ff, 100); state.score += 200; state.enemyHealth = 100;
                         enemyGroup.position.z = -15; updateUI();
                     }
                 }, 150);
             }
 
             const beamLength = armGlobalPos.distanceTo(targetData.point);
-            const beamMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 1, 6), new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.9 }));
+            const beamMesh = new THREE.Mesh(beamGeo, beamMat);
             beamMesh.scale.set(1, beamLength, 1); beamMesh.position.copy(armGlobalPos).add(targetData.point).multiplyScalar(0.5);
             beamMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), bulletDir);
             scene.add(beamMesh); spellBeams.push({ mesh: beamMesh, life: 1.0 });
@@ -542,12 +360,15 @@
             state.health = Math.max(0, state.health - amt); updateUI(); state.cameraShake = 0.4; DOM.damageOverlay.style.opacity = 1;
             setTimeout(() => DOM.damageOverlay.style.opacity = 0, 300);
             if (state.health <= 0) {
-                state.isPlaying = false; DOM.overlay.style.display = 'flex';
-                DOM.overlay.innerHTML = `<h1>GAME OVER</h1><p style="font-size:24px; color:#333;">Skor Akhir: ${state.score}</p><button onclick="location.reload()" style="padding:15px 40px; margin-top:25px; font-weight:bold; background:linear-gradient(45deg, #6600ff, #00ccff); color:white; border:none; border-radius:30px; cursor:pointer; font-size:18px;">MAIN LAGI</button>`;
+                state.isPlaying = false;
+                DOM.loadingToast.innerText = `GAME OVER - SKOR: ${state.score}`;
+                DOM.loadingToast.style.background = "rgba(255,0,0,0.8)";
+                DOM.loadingToast.style.display = "block"; DOM.loadingToast.style.opacity = "1";
+                setTimeout(() => location.reload(), 3000);
             }
         }
 
-        // MEDIAPIPE HANDS SYSTEM
+        // MEDIAPIPE HANDS DETECTOR
         const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
         hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
 
@@ -556,8 +377,8 @@
             trackingCtx.drawImage(results.image, 0, 0, DOM.trackingCanvas.width, DOM.trackingCanvas.height);
             if (results.multiHandLandmarks) {
                 for (const landmarks of results.multiHandLandmarks) {
-                    drawConnectors(trackingCtx, landmarks, HAND_CONNECTIONS, {color: '#00ffff', lineWidth: 3});
-                    drawLandmarks(trackingCtx, landmarks, {color: '#ff00ff', lineWidth: 1, radius: 3});
+                    drawConnectors(trackingCtx, landmarks, HAND_CONNECTIONS, {color: '#00ffff', lineWidth: 2});
+                    drawLandmarks(trackingCtx, landmarks, {color: '#ff00ff', lineWidth: 1, radius: 2});
                 }
             }
             trackingCtx.restore();
@@ -567,132 +388,81 @@
 
             const handCount = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
             if (handCount > 0) {
-                DOM.trackingStatus.innerText = `PELACAKAN AKTIF (${handCount} TANGAN)`;
-                DOM.trackingStatus.style.background = "rgba(0, 200, 100, 0.15)"; DOM.trackingStatus.style.color = "#006622"; DOM.trackingStatus.style.borderColor = "#00cc55";
+                DOM.trackingStatus.innerText = `[ ${handCount} TANGAN TERDETEKSI ]`;
+                DOM.trackingStatus.style.background = "rgba(0, 255, 150, 0.15)"; DOM.trackingStatus.style.color = "#00ff88"; DOM.trackingStatus.style.borderColor = "#00ff88";
             } else {
                 DOM.trackingStatus.innerText = "MENCARI TANGAN...";
-                DOM.trackingStatus.style.background = "rgba(255, 100, 100, 0.15)"; DOM.trackingStatus.style.color = "#cc0000"; DOM.trackingStatus.style.borderColor = "#ff4444";
+                DOM.trackingStatus.style.background = "rgba(255, 100, 100, 0.15)"; DOM.trackingStatus.style.color = "#ff5555"; DOM.trackingStatus.style.borderColor = "#ff5555";
             }
 
             if (results.multiHandLandmarks) {
                 results.multiHandLandmarks.forEach((landmarks) => {
-                    // Penyesuaian Invert (Cermin) agar tangan yang dilacak sesuai dengan fisik asli
-                    const isRightSideOfScreen = landmarks[0].x > 0.5; 
+                    const isRightSide = landmarks[0].x > 0.5; 
                     const getDist = (p1, p2) => Math.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2);
-
                     const ndcX = -(landmarks[8].x * 2) + 1; const ndcY = -(landmarks[8].y * 2) + 1;
+                    const avgDist = (getDist(landmarks[8], landmarks[0]) + getDist(landmarks[12], landmarks[0]) + getDist(landmarks[16], landmarks[0]) + getDist(landmarks[20], landmarks[0])) / 4;
 
-                    const d8 = getDist(landmarks[8], landmarks[0]); const d12 = getDist(landmarks[12], landmarks[0]);
-                    const d16 = getDist(landmarks[16], landmarks[0]); const d20 = getDist(landmarks[20], landmarks[0]);
-                    const avgDist = (d8 + d12 + d16 + d20) / 4;
-
-                    if (isRightSideOfScreen) {
-                        // TANGAN KIRI (armL) -> Aiming & Shoot
+                    if (isRightSide) {
                         state.leftHandTracked = true;
-                        state.smoothedHands.left.x = THREE.MathUtils.lerp(state.smoothedHands.left.x, ndcX, 0.3);
-                        state.smoothedHands.left.y = THREE.MathUtils.lerp(state.smoothedHands.left.y, ndcY, 0.3);
-
+                        state.smoothedHands.left.x = THREE.MathUtils.lerp(state.smoothedHands.left.x, ndcX, 0.35);
+                        state.smoothedHands.left.y = THREE.MathUtils.lerp(state.smoothedHands.left.y, ndcY, 0.35);
                         crosshair.position.x = state.smoothedHands.left.x * 1.5; crosshair.position.y = state.smoothedHands.left.y * 1.0;
                         armL.position.x = -0.4 + (state.smoothedHands.left.x * 0.15); armL.position.y = -0.4 + (state.smoothedHands.left.y * 0.1);
                         armL.rotation.y = state.smoothedHands.left.x * 0.3; armL.rotation.x = state.smoothedHands.left.y * -0.2;
-
-                        if (avgDist < 0.20) shootFireball(); // Tangan Mengepal -> Tembak
+                        if (avgDist < 0.20) shootFireball(); 
                     } else {
-                        // TANGAN KANAN (armR) -> Shield & Recharge
-                        state.smoothedHands.right.x = THREE.MathUtils.lerp(state.smoothedHands.right.x, ndcX, 0.3);
-                        state.smoothedHands.right.y = THREE.MathUtils.lerp(state.smoothedHands.right.y, ndcY, 0.3);
-
+                        state.smoothedHands.right.x = THREE.MathUtils.lerp(state.smoothedHands.right.x, ndcX, 0.35);
+                        state.smoothedHands.right.y = THREE.MathUtils.lerp(state.smoothedHands.right.y, ndcY, 0.35);
                         armR.position.x = 0.4 + (state.smoothedHands.right.x * 0.15); armR.position.y = -0.4 + (state.smoothedHands.right.y * 0.1);
                         armR.rotation.y = state.smoothedHands.right.x * 0.3; armR.rotation.x = state.smoothedHands.right.y * -0.2;
-
-                        if (avgDist > 0.36) state.shieldActive = true;       // Tangan Terbuka -> Shield
-                        else if (avgDist < 0.20) state.isRecharging = true;  // Tangan Mengepal -> Mana
+                        if (avgDist > 0.36) state.shieldActive = true;       
+                        else if (avgDist < 0.20) state.isRecharging = true;  
                     }
                 });
             }
         });
 
         const mpCamera = new Camera(DOM.video, { onFrame: async () => { await hands.send({image: DOM.video}); }, width: 640, height: 480 });
+        mpCamera.start().then(() => { state.isCameraLoaded = true; checkAutoStart(); });
 
-        mpCamera.start().then(() => {
-            DOM.loadingText.innerText = "Sistem Aiming Presisi & Sinkronisasi Tangan Siap!";
-            DOM.loadingText.style.color = "#008800"; DOM.startBtn.disabled = false;
-        });
-
-        DOM.startBtn.addEventListener('click', () => {
-            DOM.overlay.style.display = 'none'; state.isPlaying = true;
-            state.enemyLastAttack = performance.now() + 2500; renderLoop();
-        });
-
-        // Height offset set to 1.4 (fixed)
-
-        // RENDER LOOP (UTAMA)
+        // MAIN GAME RENDERING LOOP
         function renderLoop() {
             if (!state.isPlaying) return;
             requestAnimationFrame(renderLoop);
-            const now = performance.now();
-            const delta = clock.getDelta(); 
+            const now = performance.now(); const delta = clock.getDelta(); 
 
-            // Putar animasi model 3D jika mixer tersedia
             if (mixer) mixer.update(delta);
-
             updateTrajectoryLine();
 
             for (let i = spellBeams.length - 1; i >= 0; i--) {
                 const b = spellBeams[i]; b.life -= 0.15;
-                if (b.life <= 0) { scene.remove(b.mesh); b.mesh.geometry.dispose(); b.mesh.material.dispose(); spellBeams.splice(i, 1); } 
+                if (b.life <= 0) { scene.remove(b.mesh); spellBeams.splice(i, 1); } 
                 else { b.mesh.material.opacity = b.life; b.mesh.scale.x = b.life; b.mesh.scale.z = b.life; }
             }
 
             handMagicRings.forEach(ringObj => { ringObj.mesh.rotation.z += ringObj.speed; ringObj.mesh.rotation.y = Math.sin(now * 0.002) * 0.2; });
             handCores.forEach(core => { core.rotation.y += 0.05; core.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1); });
 
-            // Efek melayang jika .glb tidak punya animasi internal
-            if (monsterModel && !mixer) {
-                monsterModel.position.y = -0.2 + Math.sin(now * 0.002) * 0.05;
-            }
-            
-            enemyGroup.position.z = THREE.MathUtils.lerp(enemyGroup.position.z, enemyTargetZ, 0.05);
+            if (monsterModel && !mixer) monsterModel.position.y = -0.2 + Math.sin(now * 0.002) * 0.05;
+            enemyGroup.position.z = THREE.MathUtils.lerp(enemyGroup.position.z, -10, 0.05);
 
             shield.visible = state.shieldActive;
-            if (state.shieldActive) shield.rotation.y += 0.05;
-            if (state.isRecharging && state.mana < 100) { state.mana = Math.min(100, state.mana + 0.8); updateUI(); }
+            if (state.shieldActive) shield.rotation.y += 0.08;
+            if (state.isRecharging && state.mana < 100) { state.mana = Math.min(100, state.mana + 1.2); updateUI(); }
 
-            // Logika Serangan Musuh
             if (now - state.enemyLastAttack > 3000) {
                 state.enemyLastAttack = now;
-                const eBall = new THREE.Mesh(new THREE.DodecahedronGeometry(0.25, 0), new THREE.MeshStandardMaterial({color: 0x220033, emissive: 0x9900ff}));
-                
-                eBall.position.copy(enemyGroup.position); 
-                eBall.position.y += 1.0; 
-
+                const eBall = new THREE.Mesh(enemyBulletGeo, enemyBulletMat);
+                eBall.position.copy(enemyGroup.position); eBall.position.y += 1.0; 
                 const targetPos = new THREE.Vector3().copy(camera.position); targetPos.y -= 0.2;
                 projectiles.push({ mesh: eBall, dir: targetPos.sub(eBall.position).normalize(), speed: 0.18, isPlayer: false }); scene.add(eBall);
             }
 
             for (let i = projectiles.length - 1; i >= 0; i--) {
                 const p = projectiles[i]; p.mesh.position.addScaledVector(p.dir, p.speed); p.mesh.rotation.x += 0.1; p.mesh.rotation.y += 0.1;
-
-                // Player projectile collision with enemy (physical collision when projectile reaches model)
-                if (p.isPlayer && monsterModel && !p.targetWasHit) {
-                    const dist = p.mesh.position.distanceTo(enemyCollisionCenter);
-                    if (dist < enemyCollisionRadius * 0.9) {
-                        // Hit
-                        scene.remove(p.mesh); projectiles.splice(i, 1);
-                        createExplosion(p.mesh.position, 0x00ffff);
-                        state.enemyHealth = Math.max(0, state.enemyHealth - 10);
-                        state.cameraShake = 0.2; enemyGroup.position.z -= 0.4; updateUI();
-                        if (state.enemyHealth <= 0) {
-                            createExplosion(enemyGroup.position, 0x9900ff, 150); state.score += 200; state.enemyHealth = 100;
-                            enemyGroup.position.z = -15; updateUI();
-                        }
-                        continue;
-                    }
-                }
-
                 if (!p.isPlayer && p.mesh.position.distanceTo(camera.position) < 2.5) {
                     scene.remove(p.mesh); projectiles.splice(i, 1);
-                    if (state.shieldActive) { createExplosion(p.mesh.position, 0x00ccff); state.score += 10; updateUI(); } 
+                    if (state.shieldActive) { createExplosion(p.mesh.position, 0x00ccff); state.score += 15; updateUI(); } 
                     else { createExplosion(p.mesh.position, 0xff0000); takeDamage(20); }
                     continue;
                 }
@@ -700,22 +470,20 @@
             }
 
             for (let i = particles.length - 1; i >= 0; i--) {
-                const p = particles[i]; p.life -= 0.04;
+                const p = particles[i]; p.life -= 0.05;
                 if (p.life <= 0) { scene.remove(p.mesh); p.mesh.geometry.dispose(); p.mesh.material.dispose(); particles.splice(i, 1); continue; }
                 const pos = p.mesh.geometry.attributes.position.array;
                 for(let j=0; j<pos.length/3; j++) { pos[j*3] += p.vel[j*3]; pos[j*3+1] += p.vel[j*3+1]; pos[j*3+2] += p.vel[j*3+2]; }
                 p.mesh.geometry.attributes.position.needsUpdate = true; p.mesh.material.opacity = p.life;
             }
 
-            if (state.cameraShake > 0) { camera.position.x += (Math.random() - 0.5) * state.cameraShake; camera.position.y += (Math.random() - 0.5) * state.cameraShake; state.cameraShake *= 0.9; } 
+            if (state.cameraShake > 0) { camera.position.x += (Math.random() - 0.5) * state.cameraShake; camera.position.y += (Math.random() - 0.5) * state.cameraShake; state.cameraShake *= 0.85; } 
             else { camera.position.x = 0; camera.position.y = 1.6; }
 
             renderer.render(scene, camera);
         }
 
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight);
-        });
+        window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
     </script>
 </body>
 </html>
