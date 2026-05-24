@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Arcane Light - Light Mode Edition</title>
+    <title>Arcane Light - Light Mode Arcane Orb Edition</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
     
@@ -48,11 +48,11 @@
         .hud-top { display: flex; justify-content: space-between; align-items: flex-start; }
         
         /* TARGET HUD (Di Tengah Atas) */
-        #enemy-hud { width: 400px; margin: 0 auto; text-align: center; border-color: rgba(255, 80, 80, 0.4); }
-        #enemy-hud .bar-label { color: #d63031; text-shadow: 0 0 4px rgba(255, 0, 0, 0.2); font-size: 18px; letter-spacing: 1px; }
+        #enemy-hud { width: 400px; margin: 0 auto; text-align: center; border-color: rgba(0, 119, 255, 0.3); }
+        #enemy-hud .bar-label { color: #0077ff; text-shadow: 0 0 4px rgba(0, 119, 255, 0.2); font-size: 18px; letter-spacing: 1px; }
 
         /* SKOR (Di Kanan Atas) */
-        .score-box { font-size: 32px; font-weight: 700; color: #0077ff; text-shadow: 0 0 8px rgba(0, 119, 255, 0.2); text-align: center; min-width: 150px; }
+        .score-box { font-size: 32px; font-weight: 700; color: #6c63ff; text-shadow: 0 0 8px rgba(108, 99, 255, 0.2); text-align: center; min-width: 150px; }
         .score-label { font-size: 14px; color: #5577aa; letter-spacing: 2px; margin-bottom: -5px; }
 
         /* TATA LETAK BAWAH */
@@ -71,7 +71,7 @@
         
         #health-fill { background: linear-gradient(90deg, #d63031, #ff7675); box-shadow: 0 0 8px rgba(214, 48, 49, 0.3); width: 100%; }
         #mana-fill { background: linear-gradient(90deg, #0984e3, #00cec9); box-shadow: 0 0 8px rgba(9, 132, 227, 0.3); width: 100%; }
-        #enemy-health-fill { background: linear-gradient(90deg, #b21f1f, #d63031); width: 100%; }
+        #enemy-health-fill { background: linear-gradient(90deg, #0984e3, #6c63ff); box-shadow: 0 0 8px rgba(9, 132, 227, 0.3); width: 100%; }
         
         #tracking-status {
             margin-top: 15px; padding: 8px; text-align: center; font-size: 13px; font-weight: 700;
@@ -81,7 +81,7 @@
         /* KAMERA PREVIEW (Di Kanan Bawah) */
         #camera-preview {
             width: 220px; height: 165px;
-            border-radius: 16px; border: 2px solid rgba(0, 119, 255, 0.4);
+            border-radius: 16px; border: 2px solid rgba(108, 99, 255, 0.3);
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
             overflow: hidden; transform: scaleX(-1); position: relative; z-index: 15;
             background: #fff;
@@ -127,7 +127,7 @@
             
             <div id="enemy-hud" class="glass-panel">
                 <div class="bar-container">
-                    <div class="bar-label"><span>TARGET: CATTUS</span> <span><span id="enemy-hp-text">100</span>%</span></div>
+                    <div class="bar-label"><span>TARGET: ARCANE ORB</span> <span><span id="enemy-hp-text">100</span>%</span></div>
                     <div class="bar-bg"><div id="enemy-health-fill" class="bar-fill"></div></div>
                 </div>
             </div>
@@ -166,7 +166,7 @@
 
     <script type="module">
         import * as THREE from 'three';
-        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        // GLTFLoader DIHAPUS KARENA KITA TIDAK ME-LOAD MODEL EKSTERNAL LAGI
 
         // STATE MANAGER
         const state = {
@@ -174,7 +174,7 @@
             lastFireTime: 0, isRecharging: false, shieldActive: false, leftHandTracked: false,
             enemyLastAttack: 0, cameraShake: 0,
             smoothedHands: { right: new THREE.Vector3(), left: new THREE.Vector3() },
-            isModelLoaded: false, isCameraLoaded: false
+            isCameraLoaded: false
         };
 
         const DOM = {
@@ -216,11 +216,11 @@
 
         // PRE-DEFINE GEOMETRY & MATERIALS
         const bulletGeo = new THREE.DodecahedronGeometry(0.12, 0);
-        const bulletMat = new THREE.MeshBasicMaterial({ color: 0x0077ff });
+        const bulletMat = new THREE.MeshBasicMaterial({ color: 0x6c63ff });
         const enemyBulletGeo = new THREE.DodecahedronGeometry(0.25, 0);
         const enemyBulletMat = new THREE.MeshStandardMaterial({color: 0xff7675, emissive: 0xd63031});
         const beamGeo = new THREE.CylinderGeometry(0.015, 0.015, 1, 6);
-        const beamMat = new THREE.MeshBasicMaterial({ color: 0x0077ff, transparent: true, opacity: 0.8 });
+        const beamMat = new THREE.MeshBasicMaterial({ color: 0x6c63ff, transparent: true, opacity: 0.8 });
 
         // PLAYER ARMS
         const fpsArmsGroup = new THREE.Group(); camera.add(fpsArmsGroup);
@@ -237,7 +237,7 @@
             const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.04, 0), coreMat); core.position.set(0, 0.03, -0.5); armGroup.add(core); 
             handCores.push(core); if (!isRight) coreL = core;
 
-            const magicRing = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.005, 8, 32), new THREE.MeshBasicMaterial({ color: isRight ? 0xff7675 : 0x0077ff, transparent: true, opacity: 0.6, side: THREE.DoubleSide }));
+            const magicRing = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.005, 8, 32), new THREE.MeshBasicMaterial({ color: isRight ? 0xff7675 : 0x6c63ff, transparent: true, opacity: 0.6, side: THREE.DoubleSide }));
             magicRing.position.set(0, 0, -0.4); armGroup.add(magicRing); handMagicRings.push({ mesh: magicRing, speed: isRight ? 0.05 : -0.05 });
 
             armGroup.position.set(isRight ? 0.4 : -0.4, -0.4, -0.2); return armGroup;
@@ -245,41 +245,60 @@
 
         const armR = createAdvancedArm(true); const armL = createAdvancedArm(false); fpsArmsGroup.add(armR, armL);
 
-        // ENEMY & GLTF LOADER
+        // ENEMY CONTAINER
         const enemyGroup = new THREE.Group(); enemyGroup.position.set(0, 0, -10); scene.add(enemyGroup);
-        let monsterModel = null; let mixer = null; const clock = new THREE.Clock();
+        const clock = new THREE.Clock();
 
-        new GLTFLoader().load('./cattus_monster_fortnite.glb', (gltf) => {
-            monsterModel = gltf.scene;
-            monsterModel.scale.set(0.015, 0.015, 0.015); 
-            monsterModel.position.set(0, -0.2, 0); 
-            monsterModel.traverse((child) => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
-            enemyGroup.add(monsterModel);
-            if (gltf.animations && gltf.animations.length > 0) {
-                mixer = new THREE.AnimationMixer(monsterModel);
-                mixer.clipAction(gltf.animations[0]).play();
-            }
-            state.isModelLoaded = true;
-            checkAutoStart();
-        }, undefined, (e) => console.error("Gagal memuat model .GLB:", e));
+        // --- PENCIPTAAN ARCANE ORB INTERNAL ---
+        const arcaneOrbGroup = new THREE.Group(); enemyGroup.add(arcaneOrbGroup);
+        arcaneOrbGroup.position.y = 1.0;
+
+        // 1. Core Energy Orb
+        const coreOrb = new THREE.Mesh(
+            new THREE.SphereGeometry(0.5, 32, 32),
+            new THREE.MeshStandardMaterial({ 
+                color: 0xffffff, 
+                emissive: 0x00ccff, 
+                emissiveIntensity: 2.0, 
+                transparent: true, 
+                opacity: 0.9 
+            })
+        );
+        arcaneOrbGroup.add(coreOrb);
+
+        // 2. Crystal Rings (Procedural Rings)
+        const ringMat = new THREE.MeshStandardMaterial({ color: 0xccccff, transparent: true, opacity: 0.6 });
+        for (let i = 0; i < 3; i++) {
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.04, 8, 50), ringMat);
+            ring.rotation.x = Math.random() * Math.PI;
+            ring.rotation.y = Math.random() * Math.PI;
+            arcaneOrbGroup.add(ring);
+            handMagicRings.push({ mesh: ring, speed: (Math.random() - 0.5) * 0.03 }); // Gunakan array yang sama untuk animasi
+        }
+        
+        // 3. Point Light lembut untuk orb
+        const orbLight = new THREE.PointLight(0x00ccff, 1.5, 5);
+        arcaneOrbGroup.add(orbLight);
+        // --- SELESAI ARCANE ORB ---
 
         // CROSSHAIR, SHIELD & TRAJECTORY
-        const crosshair = new THREE.Mesh(new THREE.RingGeometry(0.02, 0.03, 32), new THREE.MeshBasicMaterial({ color: 0x0077ff, transparent: true, opacity: 0.8 })); crosshair.position.z = -1.5; camera.add(crosshair); 
+        const crosshair = new THREE.Mesh(new THREE.RingGeometry(0.02, 0.03, 32), new THREE.MeshBasicMaterial({ color: 0x6c63ff, transparent: true, opacity: 0.8 })); crosshair.position.z = -1.5; camera.add(crosshair); 
         const shield = new THREE.Mesh(new THREE.IcosahedronGeometry(2, 1), new THREE.MeshBasicMaterial({ color: 0x00ccff, wireframe: true, transparent: true, opacity: 0.2 })); shield.position.set(0.4, 0, -2); shield.visible = false; camera.add(shield);
 
         const projectiles = []; const particles = []; const raycaster = new THREE.Raycaster();
         const trajectoryPoints = Array.from({length: 20}, () => {
-            const dot = new THREE.Mesh(new THREE.SphereGeometry(0.015, 4, 4), new THREE.MeshBasicMaterial({ color: 0x0077ff, transparent: true, opacity: 0.4 }));
+            const dot = new THREE.Mesh(new THREE.SphereGeometry(0.015, 4, 4), new THREE.MeshBasicMaterial({ color: 0x6c63ff, transparent: true, opacity: 0.4 }));
             dot.visible = false; scene.add(dot); return dot;
         });
 
-        // KINI RENDERING LOOP DIMULAI SEGERA AGAR MONSTER LANGSUNG MUNCUL DI LOCAL/LIVE SERVER
+        // ENGINE DAN RENDER LOOP BERJALAN SEGERA KARENA TIDAK ADA LOAD MODEL
         function startEngine() {
             renderLoop();
         }
 
+        // AUTO-START SEGERA SETELAH KAMERA SIAP
         function checkAutoStart() {
-            if (state.isModelLoaded && state.isCameraLoaded && !state.isPlaying) {
+            if (state.isCameraLoaded && !state.isPlaying) {
                 DOM.loadingToast.style.opacity = '0';
                 setTimeout(() => DOM.loadingToast.style.display = 'none', 500);
                 state.isPlaying = true;
@@ -340,7 +359,7 @@
 
             if (targetData.isHit) {
                 setTimeout(() => {
-                    createExplosion(targetData.point, 0x0077ff);
+                    createExplosion(targetData.point, 0x6c63ff);
                     state.enemyHealth = Math.max(0, state.enemyHealth - 10); state.cameraShake = 0.2; enemyGroup.position.z -= 0.3; updateUI();
                     if (state.enemyHealth <= 0) {
                         createExplosion(enemyGroup.position, 0xff7675, 100); state.score += 200; state.enemyHealth = 100;
@@ -435,7 +454,7 @@
             requestAnimationFrame(renderLoop);
             const now = performance.now(); const delta = clock.getDelta(); 
 
-            if (mixer) mixer.update(delta);
+            // Putar animasi Cincin Arcane Orb (karena ditambahkan ke array handMagicRings)
             updateTrajectoryLine();
 
             for (let i = spellBeams.length - 1; i >= 0; i--) {
@@ -444,10 +463,14 @@
                 else { b.mesh.material.opacity = b.life; b.mesh.scale.x = b.life; b.mesh.scale.z = b.life; }
             }
 
+            // Animasi rotasi cincin magis & kepalan
             handMagicRings.forEach(ringObj => { ringObj.mesh.rotation.z += ringObj.speed; ringObj.mesh.rotation.y = Math.sin(now * 0.002) * 0.2; });
             handCores.forEach(core => { core.rotation.y += 0.05; core.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1); });
 
-            if (monsterModel && !mixer) monsterModel.position.y = -0.2 + Math.sin(now * 0.002) * 0.05;
+            // Efek melayang Arcane Orb
+            arcaneOrbGroup.position.y = 1.0 + Math.sin(now * 0.002) * 0.05;
+            coreOrb.rotation.y += 0.01; // Core berputar lembut
+
             enemyGroup.position.z = THREE.MathUtils.lerp(enemyGroup.position.z, -10, 0.05);
 
             // LOGIKA GAME HANYA BERJALAN JIKA GAME AKTIF (SUDAH KONEK KAMERA)
