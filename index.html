@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Arcane Light - True Crosshair Aiming Edition</title>
+    <title>Arcane Light - Cattus Monster Edition</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
@@ -48,7 +48,7 @@
 
         .score-text { font-size: 32px; font-weight: bold; color: #4400aa; text-shadow: 0 2px 5px rgba(100, 0, 255, 0.3); background: rgba(255,255,255,0.7); padding: 8px 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(102,0,255,0.2); }
 
-        /* ======== PREVIEW KAMERA (PiP) ======== */
+        /* PREVIEW KAMERA (PiP) */
         #camera-preview {
             position: absolute; bottom: 25px; right: 25px;
             width: 240px; height: 180px;
@@ -102,7 +102,7 @@
             </div>
             
             <div id="enemy-hud" class="status-box">
-                <div class="bar-label" style="color: #bb0000;"><span>TARGET: ARCANE GOLEM</span> <span><span id="enemy-hp-text">100</span>/100</span></div>
+                <div class="bar-label" style="color: #bb0000;"><span>TARGET: CATTUS MONSTER</span> <span><span id="enemy-hp-text">100</span>/100</span></div>
                 <div class="bar-bg" style="margin-bottom: 0;"><div id="enemy-health-fill" class="bar-fill"></div></div>
             </div>
 
@@ -127,6 +127,8 @@
 
     <script type="module">
         import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+        // Import GLTFLoader untuk meload file .glb
+        import { GLTFLoader } from 'https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js';
 
         const state = {
             isPlaying: false, health: 100, mana: 100, score: 0, enemyHealth: 100,
@@ -147,7 +149,7 @@
         };
         const trackingCtx = DOM.trackingCanvas.getContext('2d');
 
-        // SETUP THREE.JS
+        // SETUP THREE.JS SCENE
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0xddeeff); scene.fog = new THREE.Fog(0xddeeff, 5, 30);
         const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000); camera.position.set(0, 1.6, 0); scene.add(camera);
@@ -156,14 +158,15 @@
         renderer.setSize(window.innerWidth, window.innerHeight); renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-        scene.add(new THREE.AmbientLight(0xffffff, 1.2));
-        const sunLight = new THREE.DirectionalLight(0xfffaee, 2.5); sunLight.position.set(10, 15, 10); sunLight.castShadow = true; scene.add(sunLight);
+        // LIGHTING (Pencahayaan agar Model .glb Terlihat Jelas)
+        scene.add(new THREE.AmbientLight(0xffffff, 1.5));
+        const sunLight = new THREE.DirectionalLight(0xfffaee, 2.5); sunLight.position.set(10, 20, 10); sunLight.castShadow = true; scene.add(sunLight);
         
         const gridHelper = new THREE.GridHelper(100, 100, 0x88bbff, 0xffffff); gridHelper.position.y = 0.01; scene.add(gridHelper);
         const ground = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: 0xcce0ff, roughness: 0.9 }));
         ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
 
-        // PLAYER HANDS SYSTEM
+        // PLAYER HANDS SYSTEM (FPS ARMS)
         const fpsArmsGroup = new THREE.Group(); camera.add(fpsArmsGroup);
         const handMagicRings = []; const handCores = []; const spellBeams = [];
         let coreL;
@@ -193,20 +196,57 @@
 
         const armR = createAdvancedArm(true); const armL = createAdvancedArm(false); fpsArmsGroup.add(armR, armL);
 
-        // ENEMY TARGET GOLEM
-        const enemyGroup = new THREE.Group(); enemyGroup.position.set(0, 1.8, -10);
-        const crystalMat = new THREE.MeshPhysicalMaterial({ color: 0x9900ff, emissive: 0x330066, emissiveIntensity: 0.5, metalness: 0.1, roughness: 0.1, transmission: 0.9, thickness: 0.5 });
-        const darkMetalMat = new THREE.MeshStandardMaterial({ color: 0x222233, metalness: 0.9, roughness: 0.4 });
+        // ENEMY CONTAINER (Tempat menampung Monster .glb)
+        const enemyGroup = new THREE.Group(); 
+        enemyGroup.position.set(0, 0, -10); // Base di koordinat Y=0 agar monster menapak tanah sempurna
+        scene.add(enemyGroup);
 
-        const coreCrystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.8, 0), crystalMat); coreCrystal.castShadow = true; enemyGroup.add(coreCrystal);
-        const armorRings = new THREE.Group();
-        const ring1 = new THREE.Mesh(new THREE.TorusGeometry(1.2, 0.1, 8, 16), darkMetalMat); ring1.rotation.x = Math.PI / 2; ring1.castShadow = true; armorRings.add(ring1);
-        const ring2 = new THREE.Mesh(new THREE.TorusGeometry(1.4, 0.05, 8, 16), darkMetalMat); ring2.rotation.y = Math.PI / 4; ring2.castShadow = true;
-        for(let i = 0; i < 4; i++) {
-            const spike = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.5, 4), darkMetalMat);
-            spike.position.set(Math.cos(i * Math.PI/2) * 1.4, Math.sin(i * Math.PI/2) * 1.4, 0); spike.rotation.z = -(i * Math.PI/2); ring2.add(spike);
-        }
-        armorRings.add(ring2); enemyGroup.add(armorRings); scene.add(enemyGroup);
+        // LOAD FILE .GLB MONSTER CATTUS FORTNITE
+        const gltfLoader = new GLTFLoader();
+        let monsterModel = null;
+        let mixer = null;
+        const clock = new THREE.Clock();
+
+        gltfLoader.load(
+            'cattus_monster_fortnite.glb', 
+            (gltf) => {
+                monsterModel = gltf.scene;
+
+                // SKALA: Mengecilkan ukuran raksasa Unreal Engine Fortnite agar pas di Web Three.js
+                monsterModel.scale.set(0.015, 0.015, 0.015); 
+                
+                // POSISI: Sumbu Y diatur ke -0.2 agar kaki menyentuh grid lantai dengan pas
+                monsterModel.position.set(0, -0.2, 0); 
+
+                // ROTASI: Jika monster membelakangi kamera saat dimuat, aktifkan baris di bawah ini:
+                // monsterModel.rotation.y = Math.PI; 
+
+                // Mengaktifkan sistem bayangan pada semua mesh badan monster
+                monsterModel.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
+
+                enemyGroup.add(monsterModel);
+
+                // Jika file .glb membawa animasi (idle/run/roar), putar di sini
+                if (gltf.animations && gltf.animations.length > 0) {
+                    mixer = new THREE.AnimationMixer(monsterModel);
+                    const action = mixer.clipAction(gltf.animations[0]); 
+                    action.play();
+                }
+
+                console.log("Cattus Monster Fortnite Berhasil Dimuat!");
+            },
+            (xhr) => {
+                console.log(Math.round((xhr.loaded / xhr.total * 100)) + '% model termuat');
+            },
+            (error) => {
+                console.error("Gagal memuat file .glb. Pastikan nama file sesuai dan menggunakan Live Server.", error);
+            }
+        );
 
         // CROSSHAIR & SHIELD
         const crosshair = new THREE.Mesh(new THREE.RingGeometry(0.04, 0.06, 32), new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.6 })); crosshair.position.z = -1.5; camera.add(crosshair); 
@@ -230,12 +270,12 @@
             scene.add(pts); particles.push({ mesh: pts, vel: velArr, life: 1.0 });
         }
 
-        // AMBIL TITIK KOORDINAT DUNIA YANG DITUNJUK CROSSHAIR (TRUE AIM)
+        // AMBIL TITIK DUNIA YANG DITUNJUK OLEH BUNDARAN CROSSHAIR SCREEN (TRUE AIMING)
         function getCrosshairWorldTarget() {
             const camGlobalPos = new THREE.Vector3(); camera.getWorldPosition(camGlobalPos);
             const crossGlobalPos = new THREE.Vector3(); crosshair.getWorldPosition(crossGlobalPos);
             
-            // Vektor arah pandang lurus dari kamera menembus crosshair bundar
+            // Arah panah gaib menembus titik tengah lingkaran crosshair
             const shootDir = crossGlobalPos.clone().sub(camGlobalPos).normalize();
             
             raycaster.set(camGlobalPos, shootDir);
@@ -244,12 +284,12 @@
             if (intersects.length > 0) {
                 return { point: intersects[0].point, isHit: true };
             } else {
-                // Jika tidak mengenai monster, proyeksikan titik 20 unit lurus ke depan
+                // Jika tidak membidik monster, proyeksikan titik lurus ke depan sejauh 20 unit
                 return { point: camGlobalPos.clone().addScaledVector(shootDir, 20), isHit: false };
             }
         }
 
-        // UPDATE TRAJECTORY LINE (KELUAR DARI TANGAN KIRI MENUJU PUSAT CROSSHAIR)
+        // UPDATE JALUR TRAJECTORY (MENGUNCI POSISI CROSSHAIR SECARA REAL TIME)
         function updateTrajectoryLine() {
             if (!state.isPlaying || !state.leftHandTracked) {
                 trajectoryPoints.forEach(d => d.visible = false); return;
@@ -272,7 +312,7 @@
             });
         }
 
-        // SHOOT FUNCTION - SINKRON TEMBAKAN TANGAN KIRI PAS KE TENGAH CROSSHAIR
+        // FUNGSI TEMBAK PELURU (MENGIKUTI ARAH BIDIKAN CROSSHAIR)
         function shootFireball() {
             if (state.mana < 10 || performance.now() - state.lastFireTime < 400) return;
             state.mana -= 10; updateUI(); state.lastFireTime = performance.now();
@@ -280,7 +320,6 @@
             const targetData = getCrosshairWorldTarget();
             const armGlobalPos = new THREE.Vector3(); armL.getWorldPosition(armGlobalPos); armGlobalPos.y += 0.03;
             
-            // Arah laju peluru dihitung dari Ujung Tangan Kiri lurus menuju Target Crosshair
             const bulletDir = targetData.point.clone().sub(armGlobalPos).normalize();
 
             const ball = new THREE.Mesh(new THREE.DodecahedronGeometry(0.12, 0), new THREE.MeshBasicMaterial({ color: 0x00ffff }));
@@ -291,7 +330,7 @@
             if (targetData.isHit) {
                 setTimeout(() => {
                     createExplosion(targetData.point, 0x00ffff);
-                    state.enemyHealth = Math.max(0, state.enemyHealth - 20); state.cameraShake = 0.2; enemyGroup.position.z -= 0.8; updateUI();
+                    state.enemyHealth = Math.max(0, state.enemyHealth - 10); state.cameraShake = 0.2; enemyGroup.position.z -= 0.4; updateUI();
                     
                     if (state.enemyHealth <= 0) {
                         createExplosion(enemyGroup.position, 0x9900ff, 150); state.score += 200; state.enemyHealth = 100;
@@ -359,11 +398,9 @@
                     const d16 = getDist(landmarks[16], landmarks[0]); const d20 = getDist(landmarks[20], landmarks[0]);
                     const avgDist = (d8 + d12 + d16 + d20) / 4;
 
-                    // ==========================================================
-                    // SINKRONISASI INVERT TANGAN SEIRAMA DENGAN KAMERA CERMIN
-                    // ==========================================================
+                    // INVERT FITUR KAMERA: Menyesuaikan arah fisik cermin tangan player asli
                     if (isRightSideOfScreen) {
-                        // FISIK TANGAN KIRI ANDA -> AIM & TEMBAK (Keluar dari armL)
+                        // TANGAN KIRI ASLI -> MEMBIDIK & MENEMBAK (armL)
                         state.leftHandTracked = true;
                         state.smoothedHands.left.x = THREE.MathUtils.lerp(state.smoothedHands.left.x, ndcX, 0.3);
                         state.smoothedHands.left.y = THREE.MathUtils.lerp(state.smoothedHands.left.y, ndcY, 0.3);
@@ -374,15 +411,15 @@
 
                         if (avgDist < 0.20) shootFireball(); // Mengepal -> Tembak
                     } else {
-                        // FISIK TANGAN KANAN ANDA -> SHIELD & RECHARGE (Keluar dari armR)
+                        // TANGAN KANAN ASLI -> BERTAHAN / MENGISI MANA (armR)
                         state.smoothedHands.right.x = THREE.MathUtils.lerp(state.smoothedHands.right.x, ndcX, 0.3);
                         state.smoothedHands.right.y = THREE.MathUtils.lerp(state.smoothedHands.right.y, ndcY, 0.3);
 
                         armR.position.x = 0.4 + (state.smoothedHands.right.x * 0.15); armR.position.y = -0.4 + (state.smoothedHands.right.y * 0.1);
                         armR.rotation.y = state.smoothedHands.right.x * 0.3; armR.rotation.x = state.smoothedHands.right.y * -0.2;
 
-                        if (avgDist > 0.36) state.shieldActive = true;       // Terbuka -> Shield
-                        else if (avgDist < 0.20) state.isRecharging = true;  // Mengepal -> Mana
+                        if (avgDist > 0.36) state.shieldActive = true;       // Terbuka -> Shield Aktif
+                        else if (avgDist < 0.20) state.isRecharging = true;  // Mengepal -> Mengisi Mana
                     }
                 });
             }
@@ -400,13 +437,16 @@
             state.enemyLastAttack = performance.now() + 2500; renderLoop();
         });
 
-        // ANIMATION LOOP
+        // ANIMATION LOOP (UTAMA)
         function renderLoop() {
             if (!state.isPlaying) return;
             requestAnimationFrame(renderLoop);
             const now = performance.now();
+            const delta = clock.getDelta(); // Menghitung delta waktu untuk kelancaran animasi model 3D
 
-            // Render lintasan proyektil secara real-time mengunci target crosshair
+            // Update animasi model .glb jika memiliki mixer animasi bawaan
+            if (mixer) mixer.update(delta);
+
             updateTrajectoryLine();
 
             for (let i = spellBeams.length - 1; i >= 0; i--) {
@@ -418,19 +458,28 @@
             handMagicRings.forEach(ringObj => { ringObj.mesh.rotation.z += ringObj.speed; ringObj.mesh.rotation.y = Math.sin(now * 0.002) * 0.2; });
             handCores.forEach(core => { core.rotation.y += 0.05; core.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1); });
 
-            coreCrystal.rotation.y += 0.01; coreCrystal.position.y = Math.sin(now * 0.003) * 0.1;
-            armorRings.rotation.y -= 0.02; armorRings.rotation.x = Math.sin(now * 0.001) * 0.2; 
+            // Efek melayang lembut jika model monster tidak punya animasi internal bawaan
+            if (monsterModel && !mixer) {
+                monsterModel.position.y = -0.2 + Math.sin(now * 0.002) * 0.05;
+            }
+            
             enemyGroup.position.z = THREE.MathUtils.lerp(enemyGroup.position.z, -10, 0.05);
 
             shield.visible = state.shieldActive;
             if (state.shieldActive) shield.rotation.y += 0.05;
             if (state.isRecharging && state.mana < 100) { state.mana = Math.min(100, state.mana + 0.8); updateUI(); }
 
+            // Serangan Balasan dari Monster setiap 3 detik
             if (now - state.enemyLastAttack > 3000) {
                 state.enemyLastAttack = now;
                 const eBall = new THREE.Mesh(new THREE.DodecahedronGeometry(0.25, 0), new THREE.MeshStandardMaterial({color: 0x220033, emissive: 0x9900ff}));
-                eBall.position.copy(enemyGroup.position); const targetPos = new THREE.Vector3().copy(camera.position); targetPos.y -= 0.2;
-                projectiles.push({ mesh: eBall, dir: targetPos.sub(enemyGroup.position).normalize(), speed: 0.18, isPlayer: false }); scene.add(eBall);
+                
+                // Peluru monster keluar dari titik dada/tengah monster
+                eBall.position.copy(enemyGroup.position); 
+                eBall.position.y += 1.0; 
+
+                const targetPos = new THREE.Vector3().copy(camera.position); targetPos.y -= 0.2;
+                projectiles.push({ mesh: eBall, dir: targetPos.sub(eBall.position).normalize(), speed: 0.18, isPlayer: false }); scene.add(eBall);
             }
 
             for (let i = projectiles.length - 1; i >= 0; i--) {
