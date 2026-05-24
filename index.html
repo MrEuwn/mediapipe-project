@@ -1,1 +1,620 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcane Wizard Spellcaster - AR FPS</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+        }
 
+        /* Video disembunyikan untuk optimasi performa */
+        #webcam {
+            display: none; 
+        }
+
+        #game-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* UI Layer - Overlay Fantasi / Futuristik */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .hud-container {
+            position: absolute;
+            padding: 20px;
+            color: #fff;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+        }
+
+        .top-left { top: 0; left: 0; }
+        .top-right { top: 0; right: 0; text-align: right; }
+
+        .stat-bar-container {
+            width: 250px;
+            height: 20px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 2px solid #555;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+        }
+
+        #health-bar {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, #8b0000, #ff2a2a);
+            transition: width 0.3s ease;
+            box-shadow: 0 0 15px #ff2a2a;
+        }
+
+        #mana-bar {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, #00008b, #00d2ff);
+            transition: width 0.1s ease;
+            box-shadow: 0 0 15px #00d2ff;
+        }
+
+        .stat-label {
+            font-weight: bold;
+            letter-spacing: 2px;
+            margin-bottom: 5px;
+            font-size: 14px;
+            text-transform: uppercase;
+        }
+
+        #score-display {
+            font-size: 32px;
+            font-weight: 900;
+            color: #ffd700;
+            text-shadow: 0 0 20px #ffd700;
+        }
+
+        #loading-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #111;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            color: #00d2ff;
+            z-index: 100;
+            font-size: 24px;
+            text-shadow: 0 0 20px #00d2ff;
+        }
+
+        #game-over {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(20, 0, 0, 0.9);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            color: #ff2a2a;
+            z-index: 50;
+            font-size: 48px;
+            text-shadow: 0 0 30px #ff2a2a;
+        }
+    </style>
+</head>
+<body>
+
+    <video id="webcam" autoplay playsinline width="640" height="480"></video>
+    
+    <div id="loading-screen">
+        <div>Menghubungkan ke Arcane Weave (Loading AI & WebGL)...</div>
+        <div style="font-size: 14px; margin-top: 10px; color: #aaa;">Pastikan kamera diizinkan</div>
+    </div>
+
+    <div id="game-over">
+        <div>YOU DIED</div>
+        <div id="final-score" style="font-size: 24px; color: #fff; margin-top: 20px;">Score: 0</div>
+        <button onclick="location.reload()" style="margin-top: 30px; padding: 10px 30px; font-size: 20px; cursor: pointer; background: #ff2a2a; color: white; border: none; border-radius: 5px;">Bangkit Kembali</button>
+    </div>
+
+    <div id="ui-layer">
+        <div class="hud-container top-left">
+            <div class="stat-label">Health</div>
+            <div class="stat-bar-container"><div id="health-bar"></div></div>
+            <div class="stat-label">Mana</div>
+            <div class="stat-bar-container"><div id="mana-bar"></div></div>
+        </div>
+        <div class="hud-container top-right">
+            <div class="stat-label">Score</div>
+            <div id="score-display">0</div>
+        </div>
+    </div>
+
+    <canvas id="game-canvas"></canvas>
+
+    <script type="module">
+        import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+        import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/vision_bundle.js";
+
+        // --- SISTEM MANAJEMEN STATE & UI ---
+        let gameState = {
+            status: 'loading', // loading, playing, gameover
+            health: 100,
+            mana: 100,
+            score: 0,
+            isShieldActive: false,
+            lastFireTime: 0,
+            enemyAttackTimer: 0
+        };
+
+        const uiHealthBar = document.getElementById('health-bar');
+        const uiManaBar = document.getElementById('mana-bar');
+        const uiScore = document.getElementById('score-display');
+        const uiLoading = document.getElementById('loading-screen');
+        const uiGameOver = document.getElementById('game-over');
+        const uiFinalScore = document.getElementById('final-score');
+
+        function updateUI() {
+            uiHealthBar.style.width = Math.max(0, gameState.health) + '%';
+            uiManaBar.style.width = Math.max(0, gameState.mana) + '%';
+            uiScore.innerText = gameState.score;
+            if (gameState.health <= 0 && gameState.status === 'playing') {
+                gameState.status = 'gameover';
+                uiGameOver.style.display = 'flex';
+                uiFinalScore.innerText = "Score: " + gameState.score;
+            }
+        }
+
+        // --- VARIABEL GLOBAL CORE ---
+        let scene, camera, renderer, raycaster;
+        let handLandmarker;
+        let video;
+        let lastVideoTime = -1;
+        let clock = new THREE.Clock();
+
+        // Elemen Game
+        let crosshair;
+        let arcaneShield;
+        let enemyMesh;
+        let enemies = [];
+        let particlesArray = [];
+        let cameraShake = { x: 0, y: 0, intensity: 0 };
+        let baseCameraPos = new THREE.Vector3(0, 1.6, 0); // Ketinggian standar FPS
+
+        init();
+
+        async function init() {
+            initThree();
+            await initMediaPipe();
+            await initWebcam();
+            
+            gameState.status = 'playing';
+            uiLoading.style.display = 'none';
+            
+            // Mulai Render Loop (Sync dengan MediaPipe)
+            requestAnimationFrame(renderLoop);
+        }
+
+        function initThree() {
+            const canvas = document.getElementById('game-canvas');
+            
+            // 1. ARSITEKTUR & OPTIMASI PERFORMA
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: false });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Batasi ratio
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Shadow lembut
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x050510); // Langit malam/dungeon
+            scene.fog = new THREE.FogExp2(0x050510, 0.05);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.copy(baseCameraPos);
+
+            raycaster = new THREE.Raycaster();
+
+            // Pencahayaan
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+            scene.add(ambientLight);
+            
+            const dirLight = new THREE.DirectionalLight(0x7777ff, 1.5);
+            dirLight.position.set(5, 10, 5);
+            dirLight.castShadow = true;
+            scene.add(dirLight);
+
+            // Lantai Dungeon (Grid)
+            const floorGeo = new THREE.PlaneGeometry(100, 100, 20, 20);
+            const floorMat = new THREE.MeshStandardMaterial({ 
+                color: 0x111122, wireframe: true, transparent: true, opacity: 0.3
+            });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            scene.add(floor);
+
+            // Crosshair (Tangan Kanan - Aiming)
+            const ringGeo = new THREE.RingGeometry(0.02, 0.03, 16);
+            const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, side: THREE.DoubleSide, transparent: true, opacity: 0.8 });
+            crosshair = new THREE.Mesh(ringGeo, ringMat);
+            crosshair.position.set(0, 0, -2);
+            camera.add(crosshair); // Attach ke kamera agar mengikuti rotasi
+            scene.add(camera);
+
+            // Arcane Shield (Tangan Kiri - Defensive)
+            const shieldGeo = new THREE.CylinderGeometry(0.8, 0.8, 0.1, 6); // Heksagonal
+            const shieldMat = new THREE.MeshBasicMaterial({ color: 0x0055ff, wireframe: true, transparent: true, opacity: 0 });
+            arcaneShield = new THREE.Mesh(shieldGeo, shieldMat);
+            arcaneShield.rotation.x = Math.PI / 2;
+            arcaneShield.position.set(-1, 0, -1.5); // Posisi di kiri kamera
+            camera.add(arcaneShield);
+
+            // Spawn Musuh Pertama
+            spawnEnemy();
+
+            // Sensor Resize Window dinamis
+            window.addEventListener('resize', onWindowResize, false);
+        }
+
+        async function initMediaPipe() {
+            const vision = await FilesetResolver.forVisionTasks(
+                "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm"
+            );
+            
+            // Konfigurasi MediaPipe: Asinkron, float16, max 2 hands, GPU Delegate
+            handLandmarker = await HandLandmarker.createFromOptions(vision, {
+                baseOptions: {
+                    modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
+                    delegate: "GPU" // Paksa komputasi ke GPU
+                },
+                runningMode: "VIDEO",
+                numHands: 2,
+                minHandDetectionConfidence: 0.6,
+                minHandPresenceConfidence: 0.6,
+                minTrackingConfidence: 0.6
+            });
+        }
+
+        async function initWebcam() {
+            video = document.getElementById('webcam');
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { width: 640, height: 480, facingMode: "user" }
+            });
+            video.srcObject = stream;
+            return new Promise((resolve) => {
+                video.onloadedmetadata = () => {
+                    resolve();
+                };
+            });
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // --- ENTITAS & VFX ---
+
+        function spawnEnemy() {
+            // Gabungan Primitif: TorusKnot + Tetrahedron
+            const group = new THREE.Group();
+            
+            const mat = new THREE.MeshStandardMaterial({
+                color: 0xff3333,
+                metalness: 0.9,
+                roughness: 0.1,
+                emissive: 0x440000
+            });
+
+            const core = new THREE.Mesh(new THREE.TetrahedronGeometry(0.5, 1), mat);
+            const rings = new THREE.Mesh(new THREE.TorusKnotGeometry(0.4, 0.1, 64, 8), mat);
+            
+            group.add(core);
+            group.add(rings);
+
+            // Posisi acak di depan
+            group.position.set((Math.random() - 0.5) * 8, 1.5, -10 - Math.random() * 5);
+            scene.add(group);
+            enemies.push(group);
+        }
+
+        function createParticleExplosion(position) {
+            // Efek ledakan partikel pecahan
+            const count = 100;
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(count * 3);
+            const velocities = [];
+
+            for (let i = 0; i < count; i++) {
+                positions[i*3] = position.x;
+                positions[i*3+1] = position.y;
+                positions[i*3+2] = position.z;
+                
+                velocities.push(
+                    new THREE.Vector3((Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10)
+                );
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            const material = new THREE.PointsMaterial({ color: 0x00ffff, size: 0.1, transparent: true });
+            const points = new THREE.Points(geometry, material);
+            scene.add(points);
+
+            particlesArray.push({
+                mesh: points,
+                velocities: velocities,
+                life: 1.0 // Umur partikel (1 detik)
+            });
+
+            // Camera Shake ringan saat meledak
+            cameraShake.intensity = 0.2;
+        }
+
+        function createMagicProjectile(targetPoint) {
+            // Partikel proyektil bergerak dari bawah layar (posisi pemain) ke titik benturan
+            const startPos = new THREE.Vector3(camera.position.x, camera.position.y - 1, camera.position.z - 1);
+            
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute([startPos.x, startPos.y, startPos.z], 3));
+            const material = new THREE.PointsMaterial({ color: 0x00ffff, size: 0.3 });
+            const point = new THREE.Points(geometry, material);
+            scene.add(point);
+
+            // Simpan data perjalanan
+            particlesArray.push({
+                mesh: point,
+                isProjectile: true,
+                start: startPos,
+                target: targetPoint,
+                progress: 0,
+                speed: 0.1
+            });
+        }
+
+        // --- LOGIKA GAMEPLAY & GESTUR ---
+
+        /**
+         * Kalkulasi jarak Euclidean 3D antar dua landmark jari
+         * Formula: sqrt((x2 - x1)^2 + (y2 - y1)^2 + (z2 - z1)^2)
+         */
+        function getDistance(lm1, lm2) {
+            return Math.hypot(lm1.x - lm2.x, lm1.y - lm2.y, lm1.z - lm2.z);
+        }
+
+        function processHands(results) {
+            if (!results.landmarks) return;
+
+            let isLeftHandFound = false;
+            let aimNDC = new THREE.Vector2(0, 0);
+
+            for (let i = 0; i < results.landmarks.length; i++) {
+                const landmarks = results.landmarks[i];
+                // Handedness seringkali terbalik jika tidak di-mirror. 
+                // Asumsi standar: 'Right' di label = Tangan Fisik Kanan (Offensive)
+                const handType = results.handednesses[i][0].categoryName; 
+
+                // 2. SISTEM KOORDINAT DAN MANIPULASI KAMERA (Camera Sway)
+                // Berikan efek head bobbing natural menggunakan koordinat Pergelangan Tangan (Landmark 0)
+                const wrist = landmarks[0];
+                const targetSwayX = (wrist.x - 0.5) * 2; // Offset sway
+                
+                // Gunakan LERP untuk pergerakan halus (Slerp untuk rotasi quaternion, Lerp untuk vektor biasa)
+                baseCameraPos.x = THREE.MathUtils.lerp(baseCameraPos.x, targetSwayX * 0.5, 0.05);
+
+                if (handType === 'Right') {
+                    // --- TANGAN KANAN (OFFENSIVE) ---
+                    
+                    const indexTip = landmarks[8];
+                    const thumbTip = landmarks[4];
+
+                    // AIMING: Pemetaan Landmark 8 (2D Ternormalisasi) ke Normalized Device Coordinates (NDC)
+                    // MediaPipe Y (0 di atas, 1 di bawah). Three.js NDC Y (1 di atas, -1 di bawah).
+                    aimNDC.x = (indexTip.x - 0.5) * 2;
+                    aimNDC.y = -(indexTip.y - 0.5) * 2;
+
+                    // Proyeksikan posisi Crosshair ke ruang 3D pada z = -2 lokal dari kamera
+                    crosshair.position.set(aimNDC.x * 2, aimNDC.y * 2, -2);
+
+                    // CAST FIREBALL: Jarak Cubit / Pinch
+                    const pinchDist = getDistance(indexTip, thumbTip);
+                    const now = performance.now();
+
+                    // Ambang batas cubitan < 0.035, Cooldown 0.5 detik (500ms)
+                    if (pinchDist < 0.035 && gameState.mana >= 10 && (now - gameState.lastFireTime) > 500) {
+                        gameState.mana -= 10;
+                        gameState.lastFireTime = now;
+                        updateUI();
+
+                        // RAYCASTING: Transformasi Matriks Proyeksi
+                        // raycaster.setFromCamera secara otomatis membalikkan matriks proyeksi 
+                        // dari koordinat layar 2D (NDC) ke ray 3D dalam world space.
+                        raycaster.setFromCamera(aimNDC, camera);
+                        
+                        const intersects = raycaster.intersectObjects(enemies, true);
+                        
+                        let targetPoint;
+                        if (intersects.length > 0) {
+                            // Kena musuh
+                            targetPoint = intersects[0].point;
+                            let hitObject = intersects[0].object;
+                            // Cari group root musuh
+                            while(hitObject.parent && hitObject.parent.type !== 'Scene') hitObject = hitObject.parent;
+                            
+                            // Hapus musuh & ledakan
+                            scene.remove(hitObject);
+                            enemies = enemies.filter(e => e !== hitObject);
+                            createParticleExplosion(targetPoint);
+                            
+                            gameState.score += 10;
+                            updateUI();
+                            
+                            // Respawn musuh setelah delay
+                            setTimeout(spawnEnemy, 1000);
+                        } else {
+                            // Tembakan meleset, proyektil jalan ke kejauhan
+                            targetPoint = new THREE.Vector3();
+                            raycaster.ray.at(20, targetPoint);
+                        }
+
+                        createMagicProjectile(targetPoint);
+                    }
+                } 
+                else if (handType === 'Left') {
+                    // --- TANGAN KIRI (DEFENSIVE) ---
+                    isLeftHandFound = true;
+                    
+                    const wristLeft = landmarks[0];
+                    const tips = [landmarks[8], landmarks[12], landmarks[16], landmarks[20]];
+                    
+                    // Hitung rata-rata jarak ujung jari ke telapak tangan untuk menentukan hand state
+                    let avgDist = 0;
+                    tips.forEach(tip => avgDist += getDistance(tip, wristLeft));
+                    avgDist /= 4;
+
+                    if (avgDist > 0.35) {
+                        // ARCANE SHIELD (Jari Terbuka Lebar)
+                        gameState.isShieldActive = true;
+                        arcaneShield.material.opacity = THREE.MathUtils.lerp(arcaneShield.material.opacity, 0.8, 0.2);
+                        arcaneShield.rotation.z += 0.05; // Efek animasi berputar
+                    } 
+                    else if (avgDist < 0.2) {
+                        // RECHARGE MANA (Mengepal)
+                        gameState.isShieldActive = false;
+                        arcaneShield.material.opacity = THREE.MathUtils.lerp(arcaneShield.material.opacity, 0, 0.2);
+                        
+                        if (gameState.mana < 100) {
+                            gameState.mana += 1.5; // Regenerasi cepat
+                            updateUI();
+                        }
+                    } else {
+                        // Transisi netral
+                        gameState.isShieldActive = false;
+                        arcaneShield.material.opacity = THREE.MathUtils.lerp(arcaneShield.material.opacity, 0, 0.2);
+                    }
+                }
+            }
+
+            // Jika tangan kiri hilang dari kamera, matikan shield perlahan
+            if (!isLeftHandFound) {
+                gameState.isShieldActive = false;
+                if(arcaneShield) arcaneShield.material.opacity = THREE.MathUtils.lerp(arcaneShield.material.opacity, 0, 0.1);
+            }
+        }
+
+        function updateGameObjects(deltaTime) {
+            // Update Musuh & Mekanik Serangan Musuh (setiap 3 detik)
+            gameState.enemyAttackTimer += deltaTime;
+            if (gameState.enemyAttackTimer > 3.0 && enemies.length > 0) {
+                gameState.enemyAttackTimer = 0;
+                
+                // Animasi musuh menyerang
+                enemies[0].scale.set(1.5, 1.5, 1.5);
+                setTimeout(() => { if(enemies[0]) enemies[0].scale.set(1, 1, 1); }, 200);
+
+                if (gameState.isShieldActive) {
+                    // Serangan diblokir (Particle flash di shield)
+                    cameraShake.intensity = 0.05;
+                } else {
+                    // Serangan masuk
+                    gameState.health -= 20;
+                    cameraShake.intensity = 0.3; // Guncangan besar
+                    updateUI();
+                }
+            }
+
+            // Animasi idle musuh (Berputar perlahan)
+            enemies.forEach(enemy => {
+                enemy.rotation.y += deltaTime;
+                enemy.rotation.z += deltaTime * 0.5;
+            });
+
+            // Update Sistem Partikel
+            for (let i = particlesArray.length - 1; i >= 0; i--) {
+                let pData = particlesArray[i];
+
+                if (pData.isProjectile) {
+                    // Logika Proyektil (Lerp dari start ke target)
+                    pData.progress += pData.speed;
+                    pData.mesh.position.lerpVectors(pData.start, pData.target, pData.progress);
+                    if (pData.progress >= 1) {
+                        scene.remove(pData.mesh);
+                        particlesArray.splice(i, 1);
+                    }
+                } else {
+                    // Logika Ledakan (Burst)
+                    let positions = pData.mesh.geometry.attributes.position.array;
+                    for (let j = 0; j < pData.velocities.length; j++) {
+                        positions[j*3]   += pData.velocities[j].x * deltaTime;
+                        positions[j*3+1] += pData.velocities[j].y * deltaTime;
+                        positions[j*3+2] += pData.velocities[j].z * deltaTime;
+                    }
+                    pData.mesh.geometry.attributes.position.needsUpdate = true;
+                    
+                    pData.life -= deltaTime;
+                    pData.mesh.material.opacity = pData.life;
+                    
+                    if (pData.life <= 0) {
+                        scene.remove(pData.mesh);
+                        particlesArray.splice(i, 1);
+                    }
+                }
+            }
+
+            // Camera Shake Decay
+            if (cameraShake.intensity > 0) {
+                cameraShake.x = (Math.random() - 0.5) * cameraShake.intensity;
+                cameraShake.y = (Math.random() - 0.5) * cameraShake.intensity;
+                cameraShake.intensity -= deltaTime * 0.5; // Berkurang seiring waktu
+                if (cameraShake.intensity < 0) cameraShake.intensity = 0;
+            } else {
+                cameraShake.x = 0;
+                cameraShake.y = 0;
+            }
+
+            // Terapkan posisi akhir kamera (Base Sway + Shake)
+            camera.position.x = baseCameraPos.x + cameraShake.x;
+            camera.position.y = baseCameraPos.y + cameraShake.y;
+        }
+
+        // --- MAIN RENDER LOOP ---
+        function renderLoop() {
+            if (gameState.status !== 'playing') return; // Stop rendering if game over
+
+            // 1. Eksekusi MediaPipe Video Sync Frame yang sama
+            if (video.currentTime !== lastVideoTime) {
+                lastVideoTime = video.currentTime;
+                let results = handLandmarker.detectForVideo(video, performance.now());
+                processHands(results);
+            }
+
+            const deltaTime = clock.getDelta();
+            
+            // 2. Kalkulasi Logika Game
+            updateGameObjects(deltaTime);
+
+            // 3. Render WebGL
+            renderer.render(scene, camera);
+
+            requestAnimationFrame(renderLoop);
+        }
+    </script>
+</body>
+</html>
