@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Arcane Light - Light Mode Arcane Orb Edition</title>
+    <title>Arcane Light - Sound Effects Edition</title>
     
-    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght=500;700&display=swap" rel="stylesheet">
     
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
@@ -119,7 +119,7 @@
     <canvas id="game-canvas"></canvas>
     <div id="damage-overlay"></div>
     
-    <div id="loading-toast">🪄 MENGHUBUNGKAN SIHIR KAMERA & MONSTER...</div>
+    <div id="loading-toast">🪄 MENGHUBUNGKAN SIHIR KAMERA & AUDIO... (Klik Layar Sekali)</div>
 
     <div id="ui-layer">
         <div class="hud-top">
@@ -166,13 +166,103 @@
 
     <script type="module">
         import * as THREE from 'three';
-        // GLTFLoader DIHAPUS KARENA KITA TIDAK ME-LOAD MODEL EKSTERNAL LAGI
+
+        // --- SISTEM EFEK SUARA PROCEDURAL (WEB AUDIO API) ---
+        const AudioFX = {
+            ctx: null,
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            },
+            playShoot() {
+                this.init(); if (!this.ctx) return;
+                let osc = this.ctx.createOscillator();
+                let gain = this.ctx.createGain();
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(800, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(150, this.ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.15);
+            },
+            playHitEnemy() {
+                this.init(); if (!this.ctx) return;
+                let osc = this.ctx.createOscillator();
+                let gain = this.ctx.createGain();
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(180, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(30, this.ctx.currentTime + 0.2);
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.2);
+            },
+            playHitPlayer() {
+                this.init(); if (!this.ctx) return;
+                let osc = this.ctx.createOscillator();
+                let gain = this.ctx.createGain();
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(120, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(10, this.ctx.currentTime + 0.35);
+                gain.gain.setValueAtTime(0.35, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.35);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.35);
+            },
+            playShieldBlock() {
+                this.init(); if (!this.ctx) return;
+                let osc = this.ctx.createOscillator();
+                let gain = this.ctx.createGain();
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(1400, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(700, this.ctx.currentTime + 0.08);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.08);
+            },
+            playChargePulse() {
+                this.init(); if (!this.ctx) return;
+                let osc = this.ctx.createOscillator();
+                let gain = this.ctx.createGain();
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(350, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(650, this.ctx.currentTime + 0.06);
+                gain.gain.setValueAtTime(0.06, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.06);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.06);
+            },
+            playGameOver() {
+                this.init(); if (!this.ctx) return;
+                let now = this.ctx.currentTime;
+                [260, 200, 160, 110].forEach((freq, i) => {
+                    let osc = this.ctx.createOscillator();
+                    let gain = this.ctx.createGain();
+                    osc.connect(gain); gain.connect(this.ctx.destination);
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(freq, now + i * 0.18);
+                    gain.gain.setValueAtTime(0.25, now + i * 0.18);
+                    gain.gain.linearRampToValueAtTime(0.01, now + i * 0.18 + 0.2);
+                    osc.start(now + i * 0.18); osc.stop(now + i * 0.18 + 0.2);
+                });
+            }
+        };
+
+        // Buka audio context ketika pengguna melakukan interaksi awal di web
+        window.addEventListener('click', () => AudioFX.init());
+        window.addEventListener('touchstart', () => AudioFX.init());
 
         // STATE MANAGER
         const state = {
             isPlaying: false, health: 100, mana: 100, score: 0, enemyHealth: 100,
             lastFireTime: 0, isRecharging: false, shieldActive: false, leftHandTracked: false,
-            enemyLastAttack: 0, cameraShake: 0,
+            enemyLastAttack: 0, cameraShake: 0, lastChargeSoundTime: 0,
             smoothedHands: { right: new THREE.Vector3(), left: new THREE.Vector3() },
             isCameraLoaded: false
         };
@@ -190,7 +280,7 @@
 
         // SETUP THREE.JS SCENE (TEMA TERANG)
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xecf2ff); // Biru muda cerah bersih
+        scene.background = new THREE.Color(0xecf2ff); 
         scene.fog = new THREE.FogExp2(0xecf2ff, 0.03);
         const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000); 
         camera.position.set(0, 1.6, 0); scene.add(camera);
@@ -200,16 +290,14 @@
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-        // LIGHTING (Ditingkatkan untuk Tema Terang)
+        // LIGHTING
         scene.add(new THREE.AmbientLight(0xffffff, 1.5));
         const dirLight = new THREE.DirectionalLight(0xffffff, 2.5); 
         dirLight.position.set(10, 20, 10); 
         dirLight.castShadow = true; 
-        dirLight.shadow.mapSize.width = 1024;
-        dirLight.shadow.mapSize.height = 1024;
         scene.add(dirLight);
         
-        // GROUND & GRID Helper Terang
+        // GROUND & GRID
         const gridHelper = new THREE.GridHelper(100, 100, 0x6c63ff, 0xccd5ff); gridHelper.position.y = 0.01; scene.add(gridHelper);
         const ground = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 }));
         ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
@@ -249,37 +337,24 @@
         const enemyGroup = new THREE.Group(); enemyGroup.position.set(0, 0, -10); scene.add(enemyGroup);
         const clock = new THREE.Clock();
 
-        // --- PENCIPTAAN ARCANE ORB INTERNAL ---
+        // --- ARCANE ORB ---
         const arcaneOrbGroup = new THREE.Group(); enemyGroup.add(arcaneOrbGroup);
         arcaneOrbGroup.position.y = 1.0;
 
-        // 1. Core Energy Orb
         const coreOrb = new THREE.Mesh(
             new THREE.SphereGeometry(0.5, 32, 32),
-            new THREE.MeshStandardMaterial({ 
-                color: 0xffffff, 
-                emissive: 0x00ccff, 
-                emissiveIntensity: 2.0, 
-                transparent: true, 
-                opacity: 0.9 
-            })
+            new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x00ccff, emissiveIntensity: 2.0, transparent: true, opacity: 0.9 })
         );
         arcaneOrbGroup.add(coreOrb);
 
-        // 2. Crystal Rings (Procedural Rings)
         const ringMat = new THREE.MeshStandardMaterial({ color: 0xccccff, transparent: true, opacity: 0.6 });
         for (let i = 0; i < 3; i++) {
             const ring = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.04, 8, 50), ringMat);
-            ring.rotation.x = Math.random() * Math.PI;
-            ring.rotation.y = Math.random() * Math.PI;
+            ring.rotation.x = Math.random() * Math.PI; ring.rotation.y = Math.random() * Math.PI;
             arcaneOrbGroup.add(ring);
-            handMagicRings.push({ mesh: ring, speed: (Math.random() - 0.5) * 0.03 }); // Gunakan array yang sama untuk animasi
+            handMagicRings.push({ mesh: ring, speed: (Math.random() - 0.5) * 0.03 });
         }
-        
-        // 3. Point Light lembut untuk orb
-        const orbLight = new THREE.PointLight(0x00ccff, 1.5, 5);
-        arcaneOrbGroup.add(orbLight);
-        // --- SELESAI ARCANE ORB ---
+        const orbLight = new THREE.PointLight(0x00ccff, 1.5, 5); arcaneOrbGroup.add(orbLight);
 
         // CROSSHAIR, SHIELD & TRAJECTORY
         const crosshair = new THREE.Mesh(new THREE.RingGeometry(0.02, 0.03, 32), new THREE.MeshBasicMaterial({ color: 0x6c63ff, transparent: true, opacity: 0.8 })); crosshair.position.z = -1.5; camera.add(crosshair); 
@@ -291,12 +366,8 @@
             dot.visible = false; scene.add(dot); return dot;
         });
 
-        // ENGINE DAN RENDER LOOP BERJALAN SEGERA KARENA TIDAK ADA LOAD MODEL
-        function startEngine() {
-            renderLoop();
-        }
+        function startEngine() { renderLoop(); }
 
-        // AUTO-START SEGERA SETELAH KAMERA SIAP
         function checkAutoStart() {
             if (state.isCameraLoaded && !state.isPlaying) {
                 DOM.loadingToast.style.opacity = '0';
@@ -306,7 +377,7 @@
             }
         }
 
-        // OPTIMIZED PARTICLE EXPLOSION
+        // EXPLOSION PARTICLE
         function createExplosion(pos, color, pCount = 40) {
             const geo = new THREE.BufferGeometry(); const posArr = new Float32Array(pCount * 3); const velArr = [];
             for(let i=0; i<pCount; i++) {
@@ -348,6 +419,9 @@
             if (state.mana < 10 || performance.now() - state.lastFireTime < 350) return;
             state.mana -= 10; updateUI(); state.lastFireTime = performance.now();
 
+            // Jalankan suara laser tembakan
+            AudioFX.playShoot();
+
             const targetData = getCrosshairWorldTarget();
             const armGlobalPos = new THREE.Vector3(); armL.getWorldPosition(armGlobalPos); armGlobalPos.y += 0.03;
             const bulletDir = targetData.point.clone().sub(armGlobalPos).normalize();
@@ -359,6 +433,9 @@
 
             if (targetData.isHit) {
                 setTimeout(() => {
+                    // Jalankan suara ledakan saat peluru menghantam orb target
+                    AudioFX.playHitEnemy();
+
                     createExplosion(targetData.point, 0x6c63ff);
                     state.enemyHealth = Math.max(0, state.enemyHealth - 10); state.cameraShake = 0.2; enemyGroup.position.z -= 0.3; updateUI();
                     if (state.enemyHealth <= 0) {
@@ -381,14 +458,21 @@
         }
 
         function takeDamage(amt) {
+            // Jalankan efek suara terluka
+            AudioFX.playHitPlayer();
+
             state.health = Math.max(0, state.health - amt); updateUI(); state.cameraShake = 0.4; DOM.damageOverlay.style.opacity = 1;
             setTimeout(() => DOM.damageOverlay.style.opacity = 0, 300);
             if (state.health <= 0) {
                 state.isPlaying = false;
+                
+                // Jalankan melodi game over
+                AudioFX.playGameOver();
+
                 DOM.loadingToast.innerText = `GAME OVER - SKOR: ${state.score}`;
                 DOM.loadingToast.style.background = "#d63031";
                 DOM.loadingToast.style.display = "block"; DOM.loadingToast.style.opacity = "1";
-                setTimeout(() => location.reload(), 3000);
+                setTimeout(() => location.reload(), 4000);
             }
         }
 
@@ -454,7 +538,6 @@
             requestAnimationFrame(renderLoop);
             const now = performance.now(); const delta = clock.getDelta(); 
 
-            // Putar animasi Cincin Arcane Orb (karena ditambahkan ke array handMagicRings)
             updateTrajectoryLine();
 
             for (let i = spellBeams.length - 1; i >= 0; i--) {
@@ -463,21 +546,27 @@
                 else { b.mesh.material.opacity = b.life; b.mesh.scale.x = b.life; b.mesh.scale.z = b.life; }
             }
 
-            // Animasi rotasi cincin magis & kepalan
             handMagicRings.forEach(ringObj => { ringObj.mesh.rotation.z += ringObj.speed; ringObj.mesh.rotation.y = Math.sin(now * 0.002) * 0.2; });
             handCores.forEach(core => { core.rotation.y += 0.05; core.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1); });
 
-            // Efek melayang Arcane Orb
             arcaneOrbGroup.position.y = 1.0 + Math.sin(now * 0.002) * 0.05;
-            coreOrb.rotation.y += 0.01; // Core berputar lembut
+            coreOrb.rotation.y += 0.01;
 
             enemyGroup.position.z = THREE.MathUtils.lerp(enemyGroup.position.z, -10, 0.05);
 
-            // LOGIKA GAME HANYA BERJALAN JIKA GAME AKTIF (SUDAH KONEK KAMERA)
             if (state.isPlaying) {
                 shield.visible = state.shieldActive;
                 if (state.shieldActive) shield.rotation.y += 0.08;
-                if (state.isRecharging && state.mana < 100) { state.mana = Math.min(100, state.mana + 1.2); updateUI(); }
+                
+                // Mengatur sistem denyut suara isi ulang mana (setiap 120ms saat aktif)
+                if (state.isRecharging && state.mana < 100) { 
+                    state.mana = Math.min(100, state.mana + 1.2); 
+                    updateUI(); 
+                    if (now - state.lastChargeSoundTime > 120) {
+                        state.lastChargeSoundTime = now;
+                        AudioFX.playChargePulse();
+                    }
+                }
 
                 if (now - state.enemyLastAttack > 3000) {
                     state.enemyLastAttack = now;
@@ -491,8 +580,14 @@
                     const p = projectiles[i]; p.mesh.position.addScaledVector(p.dir, p.speed); p.mesh.rotation.x += 0.1; p.mesh.rotation.y += 0.1;
                     if (!p.isPlayer && p.mesh.position.distanceTo(camera.position) < 2.5) {
                         scene.remove(p.mesh); projectiles.splice(i, 1);
-                        if (state.shieldActive) { createExplosion(p.mesh.position, 0x00ccff); state.score += 15; updateUI(); } 
-                        else { createExplosion(p.mesh.position, 0xff0000); takeDamage(20); }
+                        if (state.shieldActive) { 
+                            // Jalankan suara pertahanan tameng berhasil
+                            AudioFX.playShieldBlock();
+                            createExplosion(p.mesh.position, 0x00ccff); state.score += 15; updateUI(); 
+                        } 
+                        else { 
+                            takeDamage(20); 
+                        }
                         continue;
                     }
                     if (p.mesh.position.lengthSq() > 600) { scene.remove(p.mesh); projectiles.splice(i, 1); }
@@ -513,7 +608,6 @@
             renderer.render(scene, camera);
         }
 
-        // Jalankan engine rendering sejak awal tanpa syarat
         startEngine();
 
         window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
