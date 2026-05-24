@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Arcane Light - Production Edition</title>
+    <title>Arcane Light - Light Mode Edition</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
     
@@ -22,11 +22,11 @@
 
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
-        body { overflow: hidden; background-color: #050510; font-family: 'Rajdhani', sans-serif; color: #fff; }
+        body { overflow: hidden; background-color: #ecf2ff; font-family: 'Rajdhani', sans-serif; color: #1a1a3a; }
         
         #game-canvas { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
 
-        /* UI LAYER - GLASSMORPHISM MODERN */
+        /* UI LAYER - LIGHT GLASSMORPHISM */
         #ui-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10;
             pointer-events: none; padding: 30px;
@@ -34,25 +34,26 @@
         }
 
         .glass-panel {
-            background: rgba(10, 10, 25, 0.4);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(100, 200, 255, 0.15);
+            background: rgba(255, 255, 255, 0.65);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(100, 150, 255, 0.3);
             border-radius: 16px;
             padding: 15px 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 0 15px rgba(0, 255, 255, 0.05);
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.08), inset 0 0 15px rgba(255, 255, 255, 0.5);
+            color: #1a1a3a;
         }
 
         /* TATA LETAK ATAS */
         .hud-top { display: flex; justify-content: space-between; align-items: flex-start; }
         
         /* TARGET HUD (Di Tengah Atas) */
-        #enemy-hud { width: 400px; margin: 0 auto; text-align: center; border-color: rgba(255, 50, 50, 0.3); }
-        #enemy-hud .bar-label { color: #ff5555; text-shadow: 0 0 8px rgba(255, 0, 0, 0.5); font-size: 18px; letter-spacing: 1px; }
+        #enemy-hud { width: 400px; margin: 0 auto; text-align: center; border-color: rgba(255, 80, 80, 0.4); }
+        #enemy-hud .bar-label { color: #d63031; text-shadow: 0 0 4px rgba(255, 0, 0, 0.2); font-size: 18px; letter-spacing: 1px; }
 
         /* SKOR (Di Kanan Atas) */
-        .score-box { font-size: 32px; font-weight: 700; color: #00ffff; text-shadow: 0 0 10px rgba(0, 255, 255, 0.6); text-align: center; min-width: 150px; }
-        .score-label { font-size: 14px; color: #88aaff; letter-spacing: 2px; margin-bottom: -5px; }
+        .score-box { font-size: 32px; font-weight: 700; color: #0077ff; text-shadow: 0 0 8px rgba(0, 119, 255, 0.2); text-align: center; min-width: 150px; }
+        .score-label { font-size: 14px; color: #5577aa; letter-spacing: 2px; margin-bottom: -5px; }
 
         /* TATA LETAK BAWAH */
         .hud-bottom { display: flex; justify-content: space-between; align-items: flex-end; }
@@ -64,13 +65,13 @@
         .bar-container:last-child { margin-bottom: 0; }
         .bar-label { font-weight: 700; font-size: 16px; margin-bottom: 6px; display: flex; justify-content: space-between; letter-spacing: 1px; }
         
-        /* Desain Bar yang Mulus */
-        .bar-bg { width: 100%; height: 18px; background: rgba(0,0,0,0.5); border-radius: 10px; overflow: hidden; position: relative; border: 1px solid rgba(255,255,255,0.1); }
+        /* Desain Bar Terang */
+        .bar-bg { width: 100%; height: 18px; background: rgba(0, 0, 50, 0.08); border-radius: 10px; overflow: hidden; position: relative; border: 1px solid rgba(0,0,0,0.05); }
         .bar-fill { height: 100%; transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1); border-radius: 10px; }
         
-        #health-fill { background: linear-gradient(90deg, #ff0055, #ff5588); box-shadow: 0 0 10px rgba(255, 0, 85, 0.5); width: 100%; }
-        #mana-fill { background: linear-gradient(90deg, #0088ff, #00ffff); box-shadow: 0 0 10px rgba(0, 136, 255, 0.5); width: 100%; }
-        #enemy-health-fill { background: linear-gradient(90deg, #880000, #ff2222); box-shadow: 0 0 10px rgba(255, 0, 0, 0.5); width: 100%; }
+        #health-fill { background: linear-gradient(90deg, #d63031, #ff7675); box-shadow: 0 0 8px rgba(214, 48, 49, 0.3); width: 100%; }
+        #mana-fill { background: linear-gradient(90deg, #0984e3, #00cec9); box-shadow: 0 0 8px rgba(9, 132, 227, 0.3); width: 100%; }
+        #enemy-health-fill { background: linear-gradient(90deg, #b21f1f, #d63031); width: 100%; }
         
         #tracking-status {
             margin-top: 15px; padding: 8px; text-align: center; font-size: 13px; font-weight: 700;
@@ -80,10 +81,10 @@
         /* KAMERA PREVIEW (Di Kanan Bawah) */
         #camera-preview {
             width: 220px; height: 165px;
-            border-radius: 16px; border: 2px solid rgba(0, 255, 255, 0.3);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 255, 255, 0.15);
+            border-radius: 16px; border: 2px solid rgba(0, 119, 255, 0.4);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
             overflow: hidden; transform: scaleX(-1); position: relative; z-index: 15;
-            background: #000;
+            background: #fff;
         }
         #tracking-canvas, #webcam { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
         #webcam { display: none; }
@@ -91,24 +92,24 @@
         /* PETUNJUK KONTROL (Tengah Bawah) */
         .controls-hint {
             position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
-            font-size: 15px; font-weight: 500; color: rgba(255,255,255,0.7); text-align: center;
-            background: rgba(0,0,0,0.5); padding: 8px 20px; border-radius: 20px; backdrop-filter: blur(5px);
-            border: 1px solid rgba(255,255,255,0.05);
+            font-size: 15px; font-weight: 500; color: #444466; text-align: center;
+            background: rgba(255, 255, 255, 0.8); padding: 8px 20px; border-radius: 20px; backdrop-filter: blur(5px);
+            border: 1px solid rgba(0,0,0,0.05); box-shadow: 0 4px 20px rgba(0,0,0,0.05);
         }
 
         /* LOADING TOAST */
         #loading-toast {
             position: absolute; top: 120px; left: 50%; transform: translateX(-50%);
-            background: linear-gradient(135deg, rgba(100, 0, 255, 0.8), rgba(0, 200, 255, 0.8));
+            background: linear-gradient(135deg, #6c63ff, #00d4aa);
             padding: 12px 30px; border-radius: 30px; font-weight: 700; font-size: 16px;
-            letter-spacing: 1px; box-shadow: 0 5px 20px rgba(0, 255, 255, 0.4);
-            border: 1px solid rgba(255,255,255,0.4); z-index: 100; transition: opacity 0.5s ease;
+            letter-spacing: 1px; box-shadow: 0 5px 20px rgba(108, 99, 255, 0.3);
+            color: white; border: 1px solid rgba(255,255,255,0.2); z-index: 100; transition: opacity 0.5s ease;
         }
 
         /* EFEK KENA DAMAGE */
         #damage-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5;
-            background: radial-gradient(circle, rgba(255,0,0,0) 40%, rgba(255,0,0,0.4) 100%);
+            background: radial-gradient(circle, rgba(255,0,0,0) 40%, rgba(255,0,0,0.2) 100%);
             opacity: 0; transition: opacity 0.2s ease-out; pointer-events: none;
         }
     </style>
@@ -144,14 +145,14 @@
         <div class="hud-bottom">
             <div class="glass-panel player-hud">
                 <div class="bar-container">
-                    <div class="bar-label"><span style="color:#ff88aa">HEALTH</span> <span><span id="hp-text">100</span></span></div>
+                    <div class="bar-label"><span style="color:#d63031">HEALTH</span> <span><span id="hp-text">100</span></span></div>
                     <div class="bar-bg"><div id="health-fill" class="bar-fill"></div></div>
                 </div>
                 <div class="bar-container">
-                    <div class="bar-label"><span style="color:#88ccff">MANA</span> <span><span id="mana-text">100</span></span></div>
+                    <div class="bar-label"><span style="color:#0984e3">MANA</span> <span><span id="mana-text">100</span></span></div>
                     <div class="bar-bg"><div id="mana-fill" class="bar-fill"></div></div>
                 </div>
-                <div id="tracking-status" style="background: rgba(255, 100, 100, 0.15); color: #ff5555; border: 1px solid #ff5555;">
+                <div id="tracking-status" style="background: rgba(255, 80, 80, 0.1); color: #d63031; border: 1px solid rgba(255, 80, 80, 0.3);">
                     MENCARI TANGAN...
                 </div>
             </div>
@@ -187,10 +188,10 @@
         };
         const trackingCtx = DOM.trackingCanvas.getContext('2d');
 
-        // SETUP THREE.JS SCENE
+        // SETUP THREE.JS SCENE (TEMA TERANG)
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x050510); 
-        scene.fog = new THREE.FogExp2(0x050510, 0.04);
+        scene.background = new THREE.Color(0xecf2ff); // Biru muda cerah bersih
+        scene.fog = new THREE.FogExp2(0xecf2ff, 0.03);
         const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000); 
         camera.position.set(0, 1.6, 0); scene.add(camera);
 
@@ -199,27 +200,27 @@
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-        // LIGHTING
-        scene.add(new THREE.AmbientLight(0xffffff, 1.0));
-        const dirLight = new THREE.DirectionalLight(0x88aaff, 3.0); 
+        // LIGHTING (Ditingkatkan untuk Tema Terang)
+        scene.add(new THREE.AmbientLight(0xffffff, 1.5));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 2.5); 
         dirLight.position.set(10, 20, 10); 
         dirLight.castShadow = true; 
         dirLight.shadow.mapSize.width = 1024;
         dirLight.shadow.mapSize.height = 1024;
         scene.add(dirLight);
         
-        // GROUND
-        const gridHelper = new THREE.GridHelper(100, 100, 0x00ffff, 0x222244); gridHelper.position.y = 0.01; scene.add(gridHelper);
-        const ground = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: 0x050510, roughness: 0.8 }));
+        // GROUND & GRID Helper Terang
+        const gridHelper = new THREE.GridHelper(100, 100, 0x6c63ff, 0xccd5ff); gridHelper.position.y = 0.01; scene.add(gridHelper);
+        const ground = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 }));
         ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
 
-        // PRE-DEFINE GEOMETRY & MATERIALS FOR FPS OPTIMIZATION
+        // PRE-DEFINE GEOMETRY & MATERIALS
         const bulletGeo = new THREE.DodecahedronGeometry(0.12, 0);
-        const bulletMat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+        const bulletMat = new THREE.MeshBasicMaterial({ color: 0x0077ff });
         const enemyBulletGeo = new THREE.DodecahedronGeometry(0.25, 0);
-        const enemyBulletMat = new THREE.MeshStandardMaterial({color: 0x220033, emissive: 0x9900ff});
+        const enemyBulletMat = new THREE.MeshStandardMaterial({color: 0xff7675, emissive: 0xd63031});
         const beamGeo = new THREE.CylinderGeometry(0.015, 0.015, 1, 6);
-        const beamMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.9 });
+        const beamMat = new THREE.MeshBasicMaterial({ color: 0x0077ff, transparent: true, opacity: 0.8 });
 
         // PLAYER ARMS
         const fpsArmsGroup = new THREE.Group(); camera.add(fpsArmsGroup);
@@ -228,15 +229,15 @@
 
         function createAdvancedArm(isRight) {
             const armGroup = new THREE.Group();
-            const armorMat = new THREE.MeshStandardMaterial({ color: 0x333344, metalness: 0.9, roughness: 0.2 });
-            const coreMat = new THREE.MeshStandardMaterial({ color: isRight ? 0xffbb00 : 0x00ffff, emissive: isRight ? 0xff5500 : 0x00aaff, emissiveIntensity: 2 });
+            const armorMat = new THREE.MeshStandardMaterial({ color: 0xe0e6ed, metalness: 0.5, roughness: 0.2 });
+            const coreMat = new THREE.MeshStandardMaterial({ color: isRight ? 0xff7675 : 0x00e6cf, emissive: isRight ? 0xd63031 : 0x00aaff, emissiveIntensity: 1.5 });
             
             const bracer = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.11, 0.35, 8), armorMat); bracer.position.set(0, 0, -0.25); bracer.rotation.x = Math.PI / 2; armGroup.add(bracer);
             const palm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.05, 0.14), armorMat); palm.position.set(0, 0, -0.5); armGroup.add(palm);
             const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.04, 0), coreMat); core.position.set(0, 0.03, -0.5); armGroup.add(core); 
             handCores.push(core); if (!isRight) coreL = core;
 
-            const magicRing = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.005, 8, 32), new THREE.MeshBasicMaterial({ color: isRight ? 0xffa500 : 0x00ffff, transparent: true, opacity: 0.7, side: THREE.DoubleSide }));
+            const magicRing = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.005, 8, 32), new THREE.MeshBasicMaterial({ color: isRight ? 0xff7675 : 0x0077ff, transparent: true, opacity: 0.6, side: THREE.DoubleSide }));
             magicRing.position.set(0, 0, -0.4); armGroup.add(magicRing); handMagicRings.push({ mesh: magicRing, speed: isRight ? 0.05 : -0.05 });
 
             armGroup.position.set(isRight ? 0.4 : -0.4, -0.4, -0.2); return armGroup;
@@ -244,7 +245,7 @@
 
         const armR = createAdvancedArm(true); const armL = createAdvancedArm(false); fpsArmsGroup.add(armR, armL);
 
-        // ENEMY & GLTF LOADER (SUDAH DIPERBARUI UNTUK GITHUB PAGES ✔️)
+        // ENEMY & GLTF LOADER
         const enemyGroup = new THREE.Group(); enemyGroup.position.set(0, 0, -10); scene.add(enemyGroup);
         let monsterModel = null; let mixer = null; const clock = new THREE.Clock();
 
@@ -258,27 +259,31 @@
                 mixer = new THREE.AnimationMixer(monsterModel);
                 mixer.clipAction(gltf.animations[0]).play();
             }
-            state.isModelLoaded = true; checkAutoStart();
+            state.isModelLoaded = true;
+            checkAutoStart();
         }, undefined, (e) => console.error("Gagal memuat model .GLB:", e));
 
         // CROSSHAIR, SHIELD & TRAJECTORY
-        const crosshair = new THREE.Mesh(new THREE.RingGeometry(0.02, 0.03, 32), new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.8 })); crosshair.position.z = -1.5; camera.add(crosshair); 
-        const shield = new THREE.Mesh(new THREE.IcosahedronGeometry(2, 1), new THREE.MeshBasicMaterial({ color: 0x00ccff, wireframe: true, transparent: true, opacity: 0.15 })); shield.position.set(0.4, 0, -2); shield.visible = false; camera.add(shield);
+        const crosshair = new THREE.Mesh(new THREE.RingGeometry(0.02, 0.03, 32), new THREE.MeshBasicMaterial({ color: 0x0077ff, transparent: true, opacity: 0.8 })); crosshair.position.z = -1.5; camera.add(crosshair); 
+        const shield = new THREE.Mesh(new THREE.IcosahedronGeometry(2, 1), new THREE.MeshBasicMaterial({ color: 0x00ccff, wireframe: true, transparent: true, opacity: 0.2 })); shield.position.set(0.4, 0, -2); shield.visible = false; camera.add(shield);
 
         const projectiles = []; const particles = []; const raycaster = new THREE.Raycaster();
         const trajectoryPoints = Array.from({length: 20}, () => {
-            const dot = new THREE.Mesh(new THREE.SphereGeometry(0.015, 4, 4), new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.5 }));
+            const dot = new THREE.Mesh(new THREE.SphereGeometry(0.015, 4, 4), new THREE.MeshBasicMaterial({ color: 0x0077ff, transparent: true, opacity: 0.4 }));
             dot.visible = false; scene.add(dot); return dot;
         });
 
-        // AUTOMATIC GAME START 
+        // KINI RENDERING LOOP DIMULAI SEGERA AGAR MONSTER LANGSUNG MUNCUL DI LOCAL/LIVE SERVER
+        function startEngine() {
+            renderLoop();
+        }
+
         function checkAutoStart() {
             if (state.isModelLoaded && state.isCameraLoaded && !state.isPlaying) {
                 DOM.loadingToast.style.opacity = '0';
                 setTimeout(() => DOM.loadingToast.style.display = 'none', 500);
                 state.isPlaying = true;
                 state.enemyLastAttack = performance.now() + 2500;
-                renderLoop();
             }
         }
 
@@ -290,7 +295,7 @@
                 velArr.push((Math.random() - 0.5)*0.5, (Math.random() - 0.5)*0.5, (Math.random() - 0.5)*0.5);
             }
             geo.setAttribute('position', new THREE.BufferAttribute(posArr, 3)); 
-            const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.15, color: color, blending: THREE.AdditiveBlending }));
+            const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.15, color: color, blending: THREE.NormalBlending }));
             scene.add(pts); particles.push({ mesh: pts, vel: velArr, life: 1.0 });
         }
 
@@ -335,10 +340,10 @@
 
             if (targetData.isHit) {
                 setTimeout(() => {
-                    createExplosion(targetData.point, 0x00ffff);
+                    createExplosion(targetData.point, 0x0077ff);
                     state.enemyHealth = Math.max(0, state.enemyHealth - 10); state.cameraShake = 0.2; enemyGroup.position.z -= 0.3; updateUI();
                     if (state.enemyHealth <= 0) {
-                        createExplosion(enemyGroup.position, 0x9900ff, 100); state.score += 200; state.enemyHealth = 100;
+                        createExplosion(enemyGroup.position, 0xff7675, 100); state.score += 200; state.enemyHealth = 100;
                         enemyGroup.position.z = -15; updateUI();
                     }
                 }, 150);
@@ -362,7 +367,7 @@
             if (state.health <= 0) {
                 state.isPlaying = false;
                 DOM.loadingToast.innerText = `GAME OVER - SKOR: ${state.score}`;
-                DOM.loadingToast.style.background = "rgba(255,0,0,0.8)";
+                DOM.loadingToast.style.background = "#d63031";
                 DOM.loadingToast.style.display = "block"; DOM.loadingToast.style.opacity = "1";
                 setTimeout(() => location.reload(), 3000);
             }
@@ -377,8 +382,8 @@
             trackingCtx.drawImage(results.image, 0, 0, DOM.trackingCanvas.width, DOM.trackingCanvas.height);
             if (results.multiHandLandmarks) {
                 for (const landmarks of results.multiHandLandmarks) {
-                    drawConnectors(trackingCtx, landmarks, HAND_CONNECTIONS, {color: '#00ffff', lineWidth: 2});
-                    drawLandmarks(trackingCtx, landmarks, {color: '#ff00ff', lineWidth: 1, radius: 2});
+                    drawConnectors(trackingCtx, landmarks, HAND_CONNECTIONS, {color: '#0077ff', lineWidth: 2});
+                    drawLandmarks(trackingCtx, landmarks, {color: '#ff7675', lineWidth: 1, radius: 2});
                 }
             }
             trackingCtx.restore();
@@ -389,10 +394,10 @@
             const handCount = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
             if (handCount > 0) {
                 DOM.trackingStatus.innerText = `[ ${handCount} TANGAN TERDETEKSI ]`;
-                DOM.trackingStatus.style.background = "rgba(0, 255, 150, 0.15)"; DOM.trackingStatus.style.color = "#00ff88"; DOM.trackingStatus.style.borderColor = "#00ff88";
+                DOM.trackingStatus.style.background = "rgba(0, 150, 255, 0.1)"; DOM.trackingStatus.style.color = "#0077ff"; DOM.trackingStatus.style.borderColor = "rgba(0,119,255,0.3)";
             } else {
                 DOM.trackingStatus.innerText = "MENCARI TANGAN...";
-                DOM.trackingStatus.style.background = "rgba(255, 100, 100, 0.15)"; DOM.trackingStatus.style.color = "#ff5555"; DOM.trackingStatus.style.borderColor = "#ff5555";
+                DOM.trackingStatus.style.background = "rgba(255, 80, 80, 0.1)"; DOM.trackingStatus.style.color = "#d63031"; DOM.trackingStatus.style.borderColor = "rgba(255,80,80,0.3)";
             }
 
             if (results.multiHandLandmarks) {
@@ -427,7 +432,6 @@
 
         // MAIN GAME RENDERING LOOP
         function renderLoop() {
-            if (!state.isPlaying) return;
             requestAnimationFrame(renderLoop);
             const now = performance.now(); const delta = clock.getDelta(); 
 
@@ -446,27 +450,30 @@
             if (monsterModel && !mixer) monsterModel.position.y = -0.2 + Math.sin(now * 0.002) * 0.05;
             enemyGroup.position.z = THREE.MathUtils.lerp(enemyGroup.position.z, -10, 0.05);
 
-            shield.visible = state.shieldActive;
-            if (state.shieldActive) shield.rotation.y += 0.08;
-            if (state.isRecharging && state.mana < 100) { state.mana = Math.min(100, state.mana + 1.2); updateUI(); }
+            // LOGIKA GAME HANYA BERJALAN JIKA GAME AKTIF (SUDAH KONEK KAMERA)
+            if (state.isPlaying) {
+                shield.visible = state.shieldActive;
+                if (state.shieldActive) shield.rotation.y += 0.08;
+                if (state.isRecharging && state.mana < 100) { state.mana = Math.min(100, state.mana + 1.2); updateUI(); }
 
-            if (now - state.enemyLastAttack > 3000) {
-                state.enemyLastAttack = now;
-                const eBall = new THREE.Mesh(enemyBulletGeo, enemyBulletMat);
-                eBall.position.copy(enemyGroup.position); eBall.position.y += 1.0; 
-                const targetPos = new THREE.Vector3().copy(camera.position); targetPos.y -= 0.2;
-                projectiles.push({ mesh: eBall, dir: targetPos.sub(eBall.position).normalize(), speed: 0.18, isPlayer: false }); scene.add(eBall);
-            }
-
-            for (let i = projectiles.length - 1; i >= 0; i--) {
-                const p = projectiles[i]; p.mesh.position.addScaledVector(p.dir, p.speed); p.mesh.rotation.x += 0.1; p.mesh.rotation.y += 0.1;
-                if (!p.isPlayer && p.mesh.position.distanceTo(camera.position) < 2.5) {
-                    scene.remove(p.mesh); projectiles.splice(i, 1);
-                    if (state.shieldActive) { createExplosion(p.mesh.position, 0x00ccff); state.score += 15; updateUI(); } 
-                    else { createExplosion(p.mesh.position, 0xff0000); takeDamage(20); }
-                    continue;
+                if (now - state.enemyLastAttack > 3000) {
+                    state.enemyLastAttack = now;
+                    const eBall = new THREE.Mesh(enemyBulletGeo, enemyBulletMat);
+                    eBall.position.copy(enemyGroup.position); eBall.position.y += 1.0; 
+                    const targetPos = new THREE.Vector3().copy(camera.position); targetPos.y -= 0.2;
+                    projectiles.push({ mesh: eBall, dir: targetPos.sub(eBall.position).normalize(), speed: 0.18, isPlayer: false }); scene.add(eBall);
                 }
-                if (p.mesh.position.lengthSq() > 600) { scene.remove(p.mesh); projectiles.splice(i, 1); }
+
+                for (let i = projectiles.length - 1; i >= 0; i--) {
+                    const p = projectiles[i]; p.mesh.position.addScaledVector(p.dir, p.speed); p.mesh.rotation.x += 0.1; p.mesh.rotation.y += 0.1;
+                    if (!p.isPlayer && p.mesh.position.distanceTo(camera.position) < 2.5) {
+                        scene.remove(p.mesh); projectiles.splice(i, 1);
+                        if (state.shieldActive) { createExplosion(p.mesh.position, 0x00ccff); state.score += 15; updateUI(); } 
+                        else { createExplosion(p.mesh.position, 0xff0000); takeDamage(20); }
+                        continue;
+                    }
+                    if (p.mesh.position.lengthSq() > 600) { scene.remove(p.mesh); projectiles.splice(i, 1); }
+                }
             }
 
             for (let i = particles.length - 1; i >= 0; i--) {
@@ -482,6 +489,9 @@
 
             renderer.render(scene, camera);
         }
+
+        // Jalankan engine rendering sejak awal tanpa syarat
+        startEngine();
 
         window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
     </script>
